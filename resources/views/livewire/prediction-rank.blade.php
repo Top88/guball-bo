@@ -1,14 +1,35 @@
 @php
-global $loop;
+    global $loop;
+    use App\Domain\Football\Match\PredictionResult;
 
-use App\Domain\Football\Match\PredictionResult;
+    // ใช้ตัวแปร $type จากคอมโพเนนต์ เพื่อดูว่าเป็นหน้าเต็งหรือสเต็ป
+    $isStep = ($type ?? 'single') === 'step';
+
+    // ฟังก์ชันช่วยกรอง collection ให้เหลือเฉพาะชนิดที่ต้องการ
+    $filterPreds = function ($collection) use ($isStep) {
+        if (!$collection) return collect();
+        $want = $isStep ? 'step' : 'single';
+        return $collection->filter(fn($p) => strtolower(trim($p->type ?? '')) === $want);
+    };
+
+    // ฟังก์ชันสรุปผลลัพธ์ W/D/L และคะแนนจาก gain_amount
+    $sumStats = function ($preds) {
+        return [
+            'win'      => $preds->where('result','win')->count(),
+            'win_half' => $preds->filter(fn($p)=> in_array($p->result, ['win_half', 'winhalf']))->count(),
+            'draw'     => $preds->where('result','draw')->count(),
+            'lose'     => $preds->where('result','lose')->count(),
+            'points'   => (float) $preds->sum('gain_amount'),
+        ];
+    };
 @endphp
+
 <div>
     <!-- อันดับคะแนน โชว์ 10 รายการ-->
     <div class="container-fluid about py-5">
         <div class="container">
             <div class="text-center mx-auto" data-wow-delay="0.1s" style="max-width: 800px;">
-                <h1 class="display-4">อันดับคะแนน</h1>
+                <h1 class="display-4">อันดับคะแนน{{ $isStep ? 'บอลสเต็ป' : 'บอลเต็ง' }}</h1>
             </div>
 
             <table>
@@ -28,19 +49,11 @@ use App\Domain\Football\Match\PredictionResult;
                 <tbody>
                     @foreach ($top_rank_list as $key => $item)
                         @php
-                            $currentRank = $loop->iteration + (($top_rank_list->currentPage()-1)*$top_rank_list->perPage());
+                            $currentRank = $loop->iteration + (($top_rank_list->currentPage()-1) * $top_rank_list->perPage());
 
-                            // ✅ กรองเฉพาะ "สเต็ป" จากข้อมูลที่โหลดมา
-                            $stepPreds = optional($item->user)->gameFootBallPrediction?->where('type','step') ?? collect();
-
-                            // รองรับทั้ง 'win_half' และ 'winhalf' เผื่อข้อมูลสะกดต่างกัน
-                            $win      = $stepPreds->where('result','win')->count();
-                            $win_half = $stepPreds->filter(fn($p)=> in_array($p->result,['win_half','winhalf']))->count();
-                            $draw     = $stepPreds->where('result','draw')->count();
-                            $lose     = $stepPreds->where('result','lose')->count();
-
-                            // ใช้คะแนนจาก gain_amount ของ "สเต็ป" เท่านั้น
-                            $points   = (float) $stepPreds->sum('gain_amount');
+                            // ในตารางบนสุด $item คือสถิติของผู้ใช้ => ต้องอ้าง $item->user
+                            $preds = $filterPreds(optional($item->user)->gameFootBallPrediction ?? collect());
+                            $stats = $sumStats($preds);
                         @endphp
                         <tr>
                             <td>{{ $currentRank }}</td>
@@ -63,17 +76,16 @@ use App\Domain\Football\Match\PredictionResult;
                             <td><a class="text-dark">{{ date_format(date_create($item->updated_at), 'd-m-Y') }}</a></td>
                             <td class="d-none d-sm-block mt-1">
                                 <div style="text-align:center">
-                                    {{-- ✅ แสดงล่าสุดเฉพาะสเต็ป --}}
-                                    @foreach ($stepPreds->take(10) as $predictions)
-                                        {!! PredictionResult::toBadge($predictions->result ?? null) !!}
+                                    @foreach ($preds->take(10) as $prediction)
+                                        {!! PredictionResult::toBadge($prediction->result ?? null) !!}
                                     @endforeach
                                 </div>
                             </td>
-                            <td>{{ $win }}</td>
-                            <td>{{ $win_half }}</td>
-                            <td>{{ $draw }}</td>
-                            <td>{{ $lose }}</td>
-                            <td>{{ $points }}</td>
+                            <td>{{ $stats['win'] }}</td>
+                            <td>{{ $stats['win_half'] }}</td>
+                            <td>{{ $stats['draw'] }}</td>
+                            <td>{{ $stats['lose'] }}</td>
+                            <td>{{ $stats['points'] }}</td>
                         </tr>
                     @endforeach
                 </tbody>
@@ -84,7 +96,7 @@ use App\Domain\Football\Match\PredictionResult;
         {{-- ====== รายสัปดาห์ ====== --}}
         <div class="container">
             <div class="text-center mx-auto" data-wow-delay="0.1s" style="max-width: 800px;">
-                <h1 class="display-4">อันดับคะแนน ประจำสัปดาห์</h1>
+                <h1 class="display-4">อันดับคะแนน ประจำสัปดาห์ ({{ $isStep ? 'บอลสเต็ป' : 'บอลเต็ง' }})</h1>
             </div>
 
             <table>
@@ -103,16 +115,11 @@ use App\Domain\Football\Match\PredictionResult;
                 <tbody>
                     @foreach ($top_rank_list_by_week as $key => $item)
                         @php
-                            $currentRank = $loop->iteration + (($top_rank_list_by_week->currentPage()-1)*$top_rank_list_by_week->perPage());
+                            $currentRank = $loop->iteration + (($top_rank_list_by_week->currentPage()-1) * $top_rank_list_by_week->perPage());
 
                             // ในตารางสัปดาห์ $item เป็น User โดยตรง
-                            $stepPreds = $item->gameFootBallPrediction?->where('type','step') ?? collect();
-
-                            $win      = $stepPreds->where('result','win')->count();
-                            $win_half = $stepPreds->filter(fn($p)=> in_array($p->result,['win_half','winhalf']))->count();
-                            $draw     = $stepPreds->where('result','draw')->count();
-                            $lose     = $stepPreds->where('result','lose')->count();
-                            $points   = (float) $stepPreds->sum('gain_amount');
+                            $preds = $filterPreds($item->gameFootBallPrediction ?? collect());
+                            $stats = $sumStats($preds);
                         @endphp
                         <tr>
                             <td>{{ $currentRank }}</td>
@@ -124,16 +131,16 @@ use App\Domain\Football\Match\PredictionResult;
                             </td>
                             <td class="d-none d-sm-block mt-1">
                                 <div style="text-align:center">
-                                    @foreach ($stepPreds->take(10) as $predictions)
-                                        {!! PredictionResult::toBadge($predictions->result ?? null) !!}
+                                    @foreach ($preds->take(10) as $prediction)
+                                        {!! PredictionResult::toBadge($prediction->result ?? null) !!}
                                     @endforeach
                                 </div>
                             </td>
-                            <td>{{ $win }}</td>
-                            <td>{{ $win_half }}</td>
-                            <td>{{ $draw }}</td>
-                            <td>{{ $lose }}</td>
-                            <td>{{ $points }}</td>
+                            <td>{{ $stats['win'] }}</td>
+                            <td>{{ $stats['win_half'] }}</td>
+                            <td>{{ $stats['draw'] }}</td>
+                            <td>{{ $stats['lose'] }}</td>
+                            <td>{{ $stats['points'] }}</td>
                         </tr>
                     @endforeach
                 </tbody>
@@ -144,7 +151,7 @@ use App\Domain\Football\Match\PredictionResult;
         {{-- ====== รายเดือน ====== --}}
         <div class="container">
             <div class="text-center mx-auto" data-wow-delay="0.1s" style="max-width: 800px;">
-                <h1 class="display-4">อันดับคะแนน ประจำเดือน</h1>
+                <h1 class="display-4">อันดับคะแนน ประจำเดือน ({{ $isStep ? 'บอลสเต็ป' : 'บอลเต็ง' }})</h1>
             </div>
 
             <table>
@@ -163,15 +170,11 @@ use App\Domain\Football\Match\PredictionResult;
                 <tbody>
                     @foreach ($top_rank_list_by_month as $key => $item)
                         @php
-                            $currentRank = $loop->iteration + (($top_rank_list_by_month->currentPage()-1)*$top_rank_list_by_month->perPage());
+                            $currentRank = $loop->iteration + (($top_rank_list_by_month->currentPage()-1) * $top_rank_list_by_month->perPage());
 
-                            $stepPreds = $item->gameFootBallPrediction?->where('type','step') ?? collect();
-
-                            $win      = $stepPreds->where('result','win')->count();
-                            $win_half = $stepPreds->filter(fn($p)=> in_array($p->result,['win_half','winhalf']))->count();
-                            $draw     = $stepPreds->where('result','draw')->count();
-                            $lose     = $stepPreds->where('result','lose')->count();
-                            $points   = (float) $stepPreds->sum('gain_amount');
+                            // ในตารางเดือน $item เป็น User
+                            $preds = $filterPreds($item->gameFootBallPrediction ?? collect());
+                            $stats = $sumStats($preds);
                         @endphp
                         <tr>
                             <td>{{ $currentRank }}</td>
@@ -183,16 +186,16 @@ use App\Domain\Football\Match\PredictionResult;
                             </td>
                             <td class="d-none d-sm-block mt-1">
                                 <div style="text-align:center">
-                                    @foreach ($stepPreds->take(10) as $predictions)
-                                        {!! PredictionResult::toBadge($predictions->result ?? null) !!}
+                                    @foreach ($preds->take(10) as $prediction)
+                                        {!! PredictionResult::toBadge($prediction->result ?? null) !!}
                                     @endforeach
                                 </div>
                             </td>
-                            <td>{{ $win }}</td>
-                            <td>{{ $win_half }}</td>
-                            <td>{{ $draw }}</td>
-                            <td>{{ $lose }}</td>
-                            <td>{{ $points }}</td>
+                            <td>{{ $stats['win'] }}</td>
+                            <td>{{ $stats['win_half'] }}</td>
+                            <td>{{ $stats['draw'] }}</td>
+                            <td>{{ $stats['lose'] }}</td>
+                            <td>{{ $stats['points'] }}</td>
                         </tr>
                     @endforeach
                 </tbody>
