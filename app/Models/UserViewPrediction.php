@@ -1,0 +1,29 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class UserViewPrediction extends Model
+{
+    use HasFactory;
+
+    protected $table = 'user_view_prediction';
+
+    protected $fillable = [
+        'asking_user_id',
+        'target_user_id',
+        'expired_date',
+    ];
+
+    public function askingUser()
+    {
+        return $this->belongsTo(User::class, 'asking_user_id');
+    }
+
+    public function targetUser()
+    {
+        return $this->belongsTo(User::class, 'target_user_id');
+    }
+}
