@@ -1099,7 +1099,7 @@
 table {
     border-spacing: 1;
     border-collapse: collapse;
-    background: #d5d5d5;
+    background: #ffffff;
     border-radius: 6px;
     overflow: hidden;
     width: 100%;
@@ -1114,9 +1114,9 @@ table {
 
     thead tr {
         height: 60px;
-        background: #000c27;
+        background: linear-gradient(90deg, #4d1c06 0%, #d54a00 50%, #631700 100%);
         font-size: 18px;
-        color: #e9ecef;
+        color: #f7fafb;
     }
 
     tbody tr {
@@ -1270,7 +1270,7 @@ table {
 
 .radio-item label {
     display: block;
-    background: #d5d5d5;
+    background: #ffffff;
     border: 2px solid #8181814f;
     border-radius: 8px;
     cursor: pointer;
@@ -1353,16 +1353,18 @@ table {
 
 /* end */
 @media only screen and (max-width: 600px) {
-    table {
-        thead tr {
-            height: 60px;
-            background: #000c27;
-            font-size: 12px;
-            color: #e9ecef;
-        }
+    table thead tr {
+        height: 60px;
+        background: linear-gradient(90deg, #4d1c06 0%, #d54a00 50%, #631700 100%);
+        font-size: 12px;
+        color: #e9ecef;
     }
 }
-
+@media only screen and (max-width: 600px) {
+    table tbody tr {
+        font-size: 12px;
+    }
+}
 .mt-0 {
     margin-top: 15px !important;
 }
@@ -1411,5 +1413,42 @@ table {
         display: flex;
         flex-direction: column-reverse;
         align-items: flex-end;
+    }
+}
+
+/* ขนาดปกติ (Desktop) */
+h1 {
+    font-size: 2rem; /* ~40px */
+}
+h2 {
+    font-size: 1.5rem; /* ~32px */
+}
+h3 {
+    font-size: 1rem; /* ~28px */
+}
+
+/* Tablet (≤ 991px) */
+@media (max-width: 991px) {
+    h1 {
+        font-size: 2rem; /* ~32px */
+    }
+    h2 {
+        font-size: 1.75rem; /* ~28px */
+    }
+    h3 {
+        font-size: 1.5rem; /* ~24px */
+    }
+}
+
+/* Mobile (≤ 600px) */
+@media (max-width: 600px) {
+    h1 {
+        font-size: 1.0rem; /* ~28px */
+    }
+    h2 {
+        font-size: 1.0rem; /* ~24px */
+    }
+    h3 {
+        font-size: 1.0rem; /* ~20px */
     }
 }

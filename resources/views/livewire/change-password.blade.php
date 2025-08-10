@@ -3,7 +3,7 @@
     <div class="container-fluid about py-5">
         <div class="container col-lg-8 col-xs-12">
             <div class="text-center mx-auto" data-wow-delay="0.1s" style="max-width: 800px;">
-                <h1 class="display-4">เปลี่ยนรหัสผ่าน</h1>
+                <h1>เปลี่ยนรหัสผ่าน</h1>
 
                 <div class="col-4 mx-auto">
                     <div class=" mb-3">

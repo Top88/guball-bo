@@ -6,7 +6,7 @@
     <div class="container-fluid about py-5">
         <div class="container col-lg-8 col-xs-12">
             <div class="text-center mx-auto" data-wow-delay="0.1s" style="max-width: 800px;">
-                <h1 class="display-4">ประวัติการแลกเครดิต</h1>
+                <h1>ประวัติการแลกเครดิต</h1>
             </div>
 {{--            <select name="pets" id="pet-select" wire:model.live="searchMonth" class="tick-modal-main-select "--}}
 {{--                    style="color: #636c79 !important; background: #dee2e6  !important; padding: 10px !important;">--}}

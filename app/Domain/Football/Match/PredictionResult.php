@@ -9,7 +9,7 @@ enum PredictionResult: string
     use PredictionResultBadge;
 
     case WIN = 'win';
-    case HALF = 'half';
+    case HALF = 'half'; // ชนะครึ่ง
     case LOSE = 'lose';
     case DRAW = 'draw';
 }

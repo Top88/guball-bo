@@ -7,7 +7,7 @@
     <div class="container-fluid about py-5">
         <div class="container col-lg-5 col-xs-12">
             <div class="text-center mx-auto" style="max-width: 800px;">
-                <h1 class="display-4">ทายผลบอลเต็ง</h1>
+                <h1>ทายผลบอลเต็ง</h1>
                 <h4 class="text-primary">
                     วันที่ {{ ThaiDate::toDateTime(Carbon::now()->toDateTimeString(), isShort: true) }}
                 </h4>
@@ -118,6 +118,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-danger" data-bs-dismiss="modal">ปิด</button>
+                    <a href="{{ route('point-history') }}" class="btn btn-success">ประวัติคะแนน</a>
                 </div>
             </div>
         </div>
@@ -132,13 +133,13 @@
                 const successModal = new bootstrap.Modal(successModalEl);
                 const alertModal = new bootstrap.Modal(alertModalEl);
 
-                window.addEventListener('open-success-prediction-modal', () => {
-                    successModal.show();
-                });
+                // window.addEventListener('open-success-prediction-modal', () => {
+                //     successModal.show();
+                // });
 
-                window.addEventListener('hide-success-prediction-modal', () => {
-                    successModal.hide();
-                });
+                // window.addEventListener('hide-success-prediction-modal', () => {
+                //     successModal.hide();
+                // });
 
                 successModalEl.addEventListener('hidden.bs.modal', function () {
                     Livewire.dispatch('closeModal');
@@ -146,6 +147,10 @@
 
                 window.addEventListener('open-alert-predicted-single-modal', () => {
                     alertModal.show();
+                });
+                // ✅ รีเฟรชหน้า 1 ครั้งหลังบันทึก (Livewire จะ dispatch อีเวนต์นี้จาก predicMatch())
+                window.addEventListener('prediction-success-refresh', () => {
+                    window.location.reload();
                 });
             });
         </script>

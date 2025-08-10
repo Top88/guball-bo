@@ -6,7 +6,7 @@
     <div class="container-fluid about py-5">
         <div class="container col-lg-5 col-xs-12">
             <div class="text-center mx-auto" data-wow-delay="0.1s" style="max-width: 800px;">
-                <h1 class="display-4">เช็คอินรับเหรียญเงิน (Silver)</h1>
+                <h1>เช็คอินรับเหรียญเงิน (Silver)</h1>
                 <h4 class="text-primary"><i class="fas fa-coins" style="color: silver"></i> : {{$userCoinsSilver}}</h4>
                 @if (false === array_search(Carbon::now()->toDateString(), $usercheckedIn) && Carbon::now()->between($startCheckInDate, $endCheckInDate))
                     <button type="button" class="btn btn-lg btn-success" wire:click="checkIn()"><i class="fas fa-coins"></i> เช็คอินรับเหรียญ</button

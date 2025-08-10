@@ -23,27 +23,66 @@ class PredictionRank extends Component
 {
     use WithPagination, WithoutUrlPagination;
 
+    private const ALLOWED_TYPES = ['single','step'];
+
     public ?string $targetViewPredictionId = null;
     public float $costForPrediction = 0;
 
-    // ✅ รับชนิดเกมจาก route: single | step (ค่าเริ่มต้น single)
+    // single | step
     public string $type = 'single';
+
+    /** บังคับให้ type เป็นค่าใน ALLOWED_TYPES เท่านั้น */
+    private function canonical(string $t): string
+    {
+        $t = strtolower(trim($t));
+        return in_array($t, self::ALLOWED_TYPES, true) ? $t : 'single';
+    }
 
     public function mount(string $type = 'single'): void
     {
         $q = request('type'); // รองรับ ?type=...
-        $type = strtolower(trim($q ?: $type));
-        $this->type = in_array($type, ['single', 'step']) ? $type : 'single';
+        $this->type = $this->canonical($q ?: $type);
     }
 
-    // ===== Helper: ใส่เงื่อนไขกรองชนิดเกมลงใน query =====
+    /** Helpers */
     private function applyTypeFilter($query)
     {
-        // ในตารางมีค่า single/step ชัดเจนจากสกรีนช็อต
         return $query->where('type', $this->type);
     }
 
-    // ===== อันดับรวม (คงลอจิกเดิม แต่กรองเฉพาะ type ที่เลือก) =====
+    private function clampTier(int $order): int
+    {
+        return max(1, min(3, $order));
+    }
+
+    private function resolveViewCost(int $order): float
+    {
+        if ($order >= 4) return 0.0;
+
+        $tier = $this->clampTier($order);
+        $prefix = $this->type === 'step'
+            ? 'cost_for_view_prediction_step_'
+            : 'cost_for_view_prediction_single_';
+
+        $defaults = [1 => 30, 2 => 20, 3 => 10];
+        $key = $prefix . $tier;
+        $val = config('settings.' . $key);
+
+        if ($val === null) {
+            $legacy = config('settings.cost_for_view_prediction_number_' . $tier);
+            return (float) ($legacy ?? $defaults[$tier]);
+        }
+        return (float) $val;
+    }
+
+    // helper redirect — บังคับติด query ?type=
+    private function goToViewPrediction(string $userId): void
+    {
+        $url = route('view-prediction', ['userId' => $userId]) . '?type=' . $this->type;
+        $this->redirect($url, navigate: true);
+    }
+
+    /** อันดับรวม */
     #[Computed]
     public function getTopRank(): LengthAwarePaginator
     {
@@ -59,8 +98,10 @@ class PredictionRank extends Component
                                     ->orderBy('id', 'desc')
                                     ->limit(10);
                             },
+                            // ✅ สิทธิ์ดู: ผูกตามประเภทด้วย
                             'targetViewPrediction' => function (HasMany $query) {
                                 $query->where('asking_user_id', auth()->id())
+                                      ->where('type', $this->type)
                                       ->where('expired_date', '>', Carbon::now());
                             },
                         ]);
@@ -69,7 +110,6 @@ class PredictionRank extends Component
             ->whereHas('user.gameFootBallPrediction', function ($query) {
                 $this->applyTypeFilter($query)->whereNotNull('result');
             })
-            // หมายเหตุ: การเรียงตามสถิติรวมยังเหมือนเดิม (ถ้าตารางสถิติรวมทุกประเภทไว้ ก็จะเรียงตามรวม)
             ->orderByDesc('points')
             ->orderByDesc('win')
             ->orderByDesc('win_half')
@@ -78,7 +118,7 @@ class PredictionRank extends Component
             ->paginate(10, pageName: 'rank-all-page');
     }
 
-    // ===== อันดับรายสัปดาห์ =====
+    /** รายสัปดาห์ */
     #[Computed]
     public function getTopRankByWeek(): LengthAwarePaginator
     {
@@ -97,39 +137,51 @@ class PredictionRank extends Component
             ]);
 
         $result = User::query()
+            ->withCount('predicToday')
+            ->with([
+                // ✅ สิทธิ์ดู: ผูกตามประเภทด้วย
+                'targetViewPrediction' => function (HasMany $query) {
+                    $query->where('asking_user_id', auth()->id())
+                          ->where('type', $this->type)
+                          ->where('expired_date', '>', Carbon::now());
+                },
+                'gameFootBallPrediction' => function (HasMany $query) use ($starDateOfWeek, $endDateOfWeek) {
+                    $this->applyTypeFilter($query)
+                        ->whereNotNull('result')
+                        ->whereBetween('created_at', [
+                            $starDateOfWeek->toDateTimeString(),
+                            $endDateOfWeek->toDateTimeString()
+                        ])
+                        ->orderBy('created_at', 'desc')
+                        ->orderBy('id', 'desc')
+                        ->limit(10);
+                },
+            ])
             ->withWhereHas('gameFootBallPrediction', function ($query) use ($starDateOfWeek, $endDateOfWeek) {
                 $this->applyTypeFilter($query)
                     ->whereNotNull('result')
                     ->whereBetween('created_at', [
                         $starDateOfWeek->toDateTimeString(),
                         $endDateOfWeek->toDateTimeString()
-                    ])
-                    ->orderBy('created_at', 'desc')
-                    ->orderBy('id', 'desc')
-                    ->limit(10);
+                    ]);
             })
             ->addSelect(['gain_sum' => $subQuery])
             ->orderByDesc('gain_sum')
             ->paginate(10, pageName: 'rank-week-page');
 
-        // สรุปชนะ/เสมอ/แพ้/คะแนน — กรองเฉพาะ type นี้อีกรอบเพื่อความชัวร์
         $result->getCollection()->transform(function ($user) {
             $win = $winHalf = $draw = $lose = $points = 0;
+            $preds = ($user->gameFootBallPrediction ?? collect())->where('type', $this->type);
 
-            $preds = $user->gameFootBallPrediction
-                ? $user->gameFootBallPrediction->where('type', $this->type)
-                : collect();
-
-            /** @var GameFootballPrediction $prediction */
-            foreach ($preds as $prediction) {
-                switch ($prediction->result) {
-                    case 'win':      $win++; break;
+            foreach ($preds as $p) {
+                $points += (float) $p->gain_amount;
+                switch ($p->result) {
+                    case 'win': $win++; break;
                     case 'winhalf':
                     case 'win_half': $winHalf++; break;
-                    case 'draw':     $draw++; break;
-                    case 'lose':     $lose++; break;
+                    case 'draw': $draw++; break;
+                    case 'lose': $lose++; break;
                 }
-                $points += (float) $prediction->gain_amount;
             }
 
             $user->win      = $win;
@@ -137,14 +189,13 @@ class PredictionRank extends Component
             $user->draw     = $draw;
             $user->lose     = $lose;
             $user->points   = $points;
-
             return $user;
         });
 
         return $result;
     }
 
-    // ===== อันดับรายเดือน =====
+    /** รายเดือน */
     #[Computed]
     public function getTopRankByMonth(): LengthAwarePaginator
     {
@@ -179,21 +230,17 @@ class PredictionRank extends Component
 
         $result->getCollection()->transform(function ($user) {
             $win = $winHalf = $draw = $lose = $points = 0;
+            $preds = ($user->gameFootBallPrediction ?? collect())->where('type', $this->type);
 
-            $preds = $user->gameFootBallPrediction
-                ? $user->gameFootBallPrediction->where('type', $this->type)
-                : collect();
-
-            /** @var GameFootballPrediction $prediction */
-            foreach ($preds as $prediction) {
-                switch ($prediction->result) {
-                    case 'win':      $win++; break;
+            foreach ($preds as $p) {
+                $points += (float) $p->gain_amount;
+                switch ($p->result) {
+                    case 'win': $win++; break;
                     case 'winhalf':
                     case 'win_half': $winHalf++; break;
-                    case 'draw':     $draw++; break;
-                    case 'lose':     $lose++; break;
+                    case 'draw': $draw++; break;
+                    case 'lose': $lose++; break;
                 }
-                $points += (float) $prediction->gain_amount;
             }
 
             $user->win      = $win;
@@ -201,29 +248,25 @@ class PredictionRank extends Component
             $user->draw     = $draw;
             $user->lose     = $lose;
             $user->points   = $points;
-
             return $user;
         });
 
         return $result;
     }
 
-    // ===== ด้านล่างคงเดิม (ดูผลล่าสุด/หักเหรียญ) =====
+    /** === ดูผลล่าสุด / หักเหรียญ === */
+
     public function selectViewPrediction(string $targetUserId, int $order): void
     {
         $this->targetViewPredictionId = $targetUserId;
-        $this->costForPrediction = (float) config('settings.cost_for_view_prediction_number_'.$order);
-        $this->openViewPredictionModal();
+        $this->costForPrediction = $this->resolveViewCost($order);
+        $this->dispatch('open-view-prediction-modal');
     }
 
+    // กรณีมีสิทธิ์อยู่แล้ว (จาก targetViewPrediction) → ไปดูได้เลย
     public function viewPredictionResult(string $targetUserId)
     {
-        $this->redirectRoute('view-prediction', ['userId' => $targetUserId]);
-    }
-
-    public function openViewPredictionModal()
-    {
-        $this->dispatch('open-view-prediction-modal');
+        $this->goToViewPrediction($targetUserId);
     }
 
     public function submitViewPrediction()
@@ -232,54 +275,76 @@ class PredictionRank extends Component
             'targetViewPredictionId' => 'required|exists:users,id',
         ]);
 
+        // อันดับ >= 4 → ฟรี แต่ต้องสร้างสิทธิ์ไว้ให้ผ่านหน้าเช็คสิทธิ์
+        if ($this->costForPrediction <= 0) {
+            UserViewPrediction::updateOrCreate(
+                [
+                    'asking_user_id' => auth()->id(),
+                    'target_user_id' => $this->targetViewPredictionId,
+                    'type'           => $this->type, // ✅ ผูกตามประเภท
+                ],
+                [
+                    'expired_date'   => now()->endOfDay()->toDateTimeString(),
+                ]
+            );
+
+            $id = $this->targetViewPredictionId;
+            $this->resetFields();
+            $this->goToViewPrediction($id);
+            return;
+        }
+
         if (auth()->user()->coins_silver < $this->costForPrediction) {
-            $this->dispatch('sweet-alert', (new NormalAlert(
-                'เหรียญของท่านไม่เพียงพอ',
-                'warning',
-            ))->toArray());
+            $this->dispatch('sweet-alert', (new NormalAlert('เหรียญของท่านไม่เพียงพอ', 'warning'))->toArray());
             return;
         }
 
         DB::beginTransaction();
-        /** @var User $user */
-        $user = User::find(auth()->user()->id);
-        $currentCoin = $user->coins_silver;
-
         try {
+            /** @var User $user */
+            $user = User::findOrFail(auth()->id());
+            $current = $user->coins_silver;
+
             $user->decrement('coins_silver', $this->costForPrediction);
             $user->refresh();
 
             UserSilverCoinTransactionLog::create([
-                'user_id'   => $user->id,
-                'action'    => SilverCoinHistroryAction::VIEW_FOOTBALL_PREDICTION->value,
-                'current'   => $currentCoin,
-                'change'    => 0 - $this->costForPrediction,
-                'balance'   => $user->coins_silver,
-                'updated_by'=> $user->id,
+                'user_id'    => $user->id,
+                'action'     => SilverCoinHistroryAction::VIEW_FOOTBALL_PREDICTION->value,
+                'current'    => $current,
+                'change'     => 0 - $this->costForPrediction,
+                'balance'    => $user->coins_silver,
+                'updated_by' => $user->id,
             ]);
 
-            UserViewPrediction::create([
-                'asking_user_id' => auth()->user()->id,
-                'target_user_id' => $this->targetViewPredictionId,
-                'expired_date'   => Carbon::now()->endOfDay()->toDateTimeString(),
-            ]);
+            // บันทึกสิทธิ์พร้อม type
+            UserViewPrediction::updateOrCreate(
+                [
+                    'asking_user_id' => $user->id,
+                    'target_user_id' => $this->targetViewPredictionId,
+                    'type'           => $this->type, // ✅ ผูกตามประเภท
+                ],
+                [
+                    'expired_date'   => now()->endOfDay()->toDateTimeString(),
+                ]
+            );
 
             DB::commit();
-            $this->redirectRoute('view-prediction', ['userId' => $this->targetViewPredictionId]);
+
+            $id = $this->targetViewPredictionId;
             $this->resetFields();
+            $this->goToViewPrediction($id);
         } catch (Exception $e) {
             DB::rollBack();
-            $this->dispatch('sweet-alert', (new NormalAlert(
-                'ไม่สามารถดูผลล่าสุดได้',
-                'error',
-            ))->toArray());
+            $this->dispatch('sweet-alert', (new NormalAlert('ไม่สามารถดูผลล่าสุดได้', 'error'))->toArray());
         }
     }
 
     public function resetFields(): void
     {
         $this->targetViewPredictionId = null;
-        unset($this->getTopRank, $this->getTopRankByWeek);
+        $this->costForPrediction = 0;
+        unset($this->getTopRank, $this->getTopRankByWeek, $this->getTopRankByMonth);
     }
 
     public function render()

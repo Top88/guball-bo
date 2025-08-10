@@ -32,19 +32,22 @@ class SelectSingleGame extends Component
 
     public function setValidTime(): bool
     {
-        $startTime = explode(':', config('settings.predic_time_period_start'));
-        $endTime = explode(':', config('settings.predic_time_period_end'));
-        $startTime = Carbon::createFromTime($startTime[0], $startTime[1], 0);
-        $endTime = Carbon::createFromTime($endTime[0], $endTime[1], 0);
+        $start = explode(':', (string) config('settings.predic_time_period_start', '12:00'));
+        $end   = explode(':', (string) config('settings.predic_time_period_end',   '23:59'));
+
+        $startTime = Carbon::createFromTime((int) $start[0], (int) $start[1], 0);
+        $endTime   = Carbon::createFromTime((int) $end[0],   (int) $end[1],   0);
+
         return Carbon::now()->between($startTime, $endTime);
     }
 
     public function checkPredicted(): bool
     {
-        $startTime = explode(':', config('settings.predic_time_period_start'));
-        $endTime = explode(':', config('settings.predic_time_period_end'));
-        $startTime = Carbon::createFromTime($startTime[0], $startTime[1], 0);
-        $endTime = Carbon::createFromTime($endTime[0], $endTime[1], 0);
+        $start = explode(':', (string) config('settings.predic_time_period_start', '12:00'));
+        $end   = explode(':', (string) config('settings.predic_time_period_end',   '23:59'));
+
+        $startTime = Carbon::createFromTime((int) $start[0], (int) $start[1], 0);
+        $endTime   = Carbon::createFromTime((int) $end[0],   (int) $end[1],   0);
 
         $predicted = GameFootballPrediction::query()
             ->where('user_id', Auth::id())
@@ -52,27 +55,34 @@ class SelectSingleGame extends Component
             ->whereBetween('created_at', [$startTime, $endTime])
             ->first();
 
-        if (null !== $predicted) {
+        if ($predicted !== null) {
             $this->dispatch('open-alert-predicted-single-modal');
         }
 
-        return null === $predicted;
+        return $predicted === null;
     }
 
     #[Computed(true, 60, true)]
     public function matchList(): array|Collection|\Illuminate\Support\Collection
     {
         $now = Carbon::now();
-        $settingTime = Carbon::now()->setTimeFrom(config('settings.match_time_allow_to_start_predic', '10:00'));
+
+        // แก้เป็น setTimeFromTimeString ให้ตรงชนิด
+        $settingTime = Carbon::now()->setTimeFromTimeString(
+            (string) config('settings.match_time_allow_to_start_predic', '10:00')
+        );
         $startAllowPredicTeam = $now->greaterThan($settingTime) ? $now : $settingTime->copy();
-        $endAllowPredicTeam = Carbon::now()->addDay()->setTimeFrom(config('settings.match_time_allow_to_end_predic', '09:59'));
+
+        $endAllowPredicTeam = Carbon::now()->addDay()->setTimeFromTimeString(
+            (string) config('settings.match_time_allow_to_end_predic', '09:59')
+        );
 
         return GameFootballMatch::with(['league', 'homeTeam', 'awayTeam', 'prediction'])
             ->where('status', MatchStatus::active)
-            ->where('match_date', '>', $startAllowPredicTeam->toDateTimeString())
+            ->where('match_date', '>',  $startAllowPredicTeam->toDateTimeString())
             ->where('match_date', '<=', $endAllowPredicTeam->toDateTimeString())
             ->whereDoesntHave('prediction', function (Builder $query) {
-                $query->where('user_id', Auth::user()->id)->where('type', 'single');
+                $query->where('user_id', Auth::id())->where('type', 'single');
             })
             ->orderBy('match_date')
             ->get()
@@ -94,8 +104,14 @@ class SelectSingleGame extends Component
 
     public function predicMatch(): void
     {
+        // กันคลิกซ้ำจากฝั่งเซิร์ฟเวอร์
+        if (!$this->isSelectable) {
+            $this->dispatch('open-alert-predicted-single-modal');
+            return;
+        }
+
         $validated = Validator::make(['predictions' => $this->predictions], [
-            'predictions' => 'required|array|min:1|max:1',
+            'predictions'   => 'required|array|min:1|max:1',
             'predictions.*' => 'required|integer|exists:game_football_team,id',
         ], [
             'predictions.min' => 'ต้องเลือกอย่างน้อย :min รายการ',
@@ -108,31 +124,41 @@ class SelectSingleGame extends Component
         }
 
         try {
-            $predictionService = app()->make(PredictionService::class);
+            $predictionService    = app()->make(PredictionService::class);
             $predictionCollection = new PredictionCollection();
 
-            foreach ($this->predictions as $key => $value) {
-                $predictionEntity = new Prediction(
-                    Auth::user()->id,
-                    $key,
-                    $value,
+            foreach ($this->predictions as $matchId => $teamId) {
+                $predictionCollection->add(new Prediction(
+                    Auth::id(),
+                    $matchId,
+                    $teamId,
                     CurrencyType::SILVER_COIN,
-                    config('settings.prediction_cost'),
-                    'single' // เพิ่ม type
-                );
-                $predictionCollection->add($predictionEntity);
+                    (float) config('settings.prediction_cost', 0),
+                    'single' // type
+                ));
             }
 
-            $predictionService->matchPrediction(Auth::user()->id, $predictionCollection, 'single'); // ส่ง type
+            // บันทึกผลการทาย
+            $predictionService->matchPrediction(Auth::id(), $predictionCollection, 'single');
 
+            // ✅ รีเฟรชหน้า 1 ครั้ง (ง่ายที่สุด)
+            $this->dispatch('prediction-success-refresh');
+
+            // ปิดปุ่มและ sync สถานะ (กัน submit ซ้ำ)
+            $this->isSelectable = false;
+            $this->isSelectable = $this->setValidTime() && $this->checkPredicted();
+
+            // (ถ้าจะโชว์ modal ด้วยก็ยังได้)
             $this->dispatch('open-success-prediction-modal');
             $this->dispatch('updated-user-data');
+
+            // ล้างค่าหน้า
             $this->resetPredictions();
             unset($this->matchList);
         } catch (\Exception $th) {
             Log::error($th);
             $this->dispatch('sweet-alert', (new NormalAlert(
-                $th->getMessage(),
+                'ไม่สามารถบันทึกการทายผลได้',
                 'error',
             ))->toArray());
         }

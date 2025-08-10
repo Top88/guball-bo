@@ -7,7 +7,7 @@
     <div class="container-fluid about py-5">
         <div class="container col-lg-5 col-xs-12">
             <div class="text-center mx-auto" style="max-width: 800px;">
-                <h1 class="display-4">ทายผลบอลสเต็ป</h1>
+                <h1>ทายผลบอลสเต็ป</h1>
                 <h4 class="text-primary">
                     @lang('website.general.football_game_prediction') วันที่ {{ ThaiDate::toDateTime(Carbon::now()->toDateTimeString(), isShort: true) }}
                 </h4>
