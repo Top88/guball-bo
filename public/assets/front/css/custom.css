@@ -1,3 +1,8 @@
+:root {
+    --primary: #ffa500;
+    --accent: #000000;
+    --neutral: #d5d5d5;
+}
 
 .radio-item [type="radio"] {
     display: none;
@@ -7,8 +12,8 @@
 }
 .radio-item label {
     display: block;
-    background: #d5d5d5;
-    border: 2px solid #818181;
+    background: var(--neutral);
+    border: 2px solid var(--accent);
     border-radius: 8px;
     cursor: pointer;
     font-size: 18px;
@@ -29,12 +34,12 @@
 .radio-item label:after {
     height: 19px;
     width: 19px;
-    border: 2px solid #534eee00;
+    border: 2px solid transparent;
     left: 19px;
     top: calc(50% - 12px);
 }
 .radio-item label:before {
-    background: #534eee00;
+    background: transparent;
     height: 20px;
     width: 20px;
     left: 21px;
@@ -45,8 +50,8 @@
     transition: 0.4s ease-in-out 0s;
 }
 .radio-item [type="radio"]:checked ~ label {
-    border-color: #1eff00;
-    background: #1eff00;
+    border-color: var(--primary);
+    background: var(--primary);
 }
 .radio-item [type="radio"]:checked ~ label::before {
     opacity: 1;
@@ -97,7 +102,7 @@ clear: both;
 }
 .button-group button:hover {
     cursor: pointer;
-    box-shadow: 0 0 10px 0 #ccc;
+    box-shadow: 0 0 10px 0 var(--neutral);
 }
 .dialog-container {
     position: absolute;
@@ -105,10 +110,10 @@ clear: both;
     top: -30%;
     transform: translateX(-50%) translateY(-50%);
     width: 350px;
-    background: #fff;
+    background: var(--neutral);
     padding: 10px;
-    border: 2px solid #ddd;
-    box-shadow: 1px 1px 5px 1px #ccc;
+    border: 2px solid var(--neutral);
+    box-shadow: 1px 1px 5px 1px var(--neutral);
     border-radius: 10px;
     opacity: 0;
     transition: all 0.3s linear 0s;
@@ -116,8 +121,8 @@ clear: both;
 .dialog-header {
     padding: 10px;
     font-weight: bold;
-    background: #f7fafb;
-    color: #000000;
+    background: var(--neutral);
+    color: var(--accent);
     text-align: center;
 }
 .dialog-body {
@@ -134,12 +139,12 @@ clear: both;
     display: inline-block;
     width: 100px;
     padding: 5px 0;
-    border: 1px solid #ccc;
+    border: 1px solid var(--neutral);
     border-radius: 10px;
-    background: #eee;
+    background: var(--neutral);
     cursor: pointer;
 }
 .dialog-footer a:active {
-    box-shadow: inset 2px 2px 4px 0 #ccc;
-    color: #666;
+    box-shadow: inset 2px 2px 4px 0 var(--neutral);
+    color: var(--accent);
 }
