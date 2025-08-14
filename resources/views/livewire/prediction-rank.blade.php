@@ -59,7 +59,7 @@
                                 @php $authId = auth()->id(); @endphp
 
                                 @if ($item->id === $authId)
-                                    <span style="color:goldenrod"><i class="fas fa-solid fa-trophy"></i></span>
+                                      <i class="fas fa-solid fa-trophy trophy-gold"></i>
 
                                 @elseif (!empty($item->targetViewPrediction) && count($item->targetViewPrediction) > 0)
                                     <button type="button" class="btn btn-primary btn-sm"
@@ -124,7 +124,7 @@
                             <td>
                                 <a class="text-dark">{{ $item->nick_name }}</a>
                                 @if ($item->id === auth()->id())
-                                    <span style="color:goldenrod"><i class="fas fa-solid fa-trophy"></i></span>
+                                      <i class="fas fa-solid fa-trophy trophy-gold"></i>
                                 @endif
                             </td>
                             <td class="d-none d-sm-block mt-1">
