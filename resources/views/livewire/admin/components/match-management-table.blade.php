@@ -73,13 +73,13 @@
                     <td> {{ $match->league?->name }} </td>
                     <td>
                         @if ($match->result?->team_match_result === 'home')
-                            <span style="color:goldenrod"><i class="fa-solid fa-trophy"></i></span>
+                            <i class="fa-solid fa-trophy trophy-gold"></i>
                         @endif
                         {{ $match->homeTeam?->name }}
                     </td>
                     <td>
                         @if ($match->result?->team_match_result === 'away')
-                            <span style="color:goldenrod"><i class="fa-solid fa-trophy"></i></span>
+                            <i class="fa-solid fa-trophy trophy-gold"></i>
                         @endif
                         {{ $match->awayTeam?->name }}
                     </td>

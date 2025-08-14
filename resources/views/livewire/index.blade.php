@@ -80,11 +80,11 @@
                                 <tr>
                                     <th>
                                         @if($i+1 == 1)
-                                            <i class="fa-solid fa-trophy" style="color: gold;"></i>
+                                            <i class="fa-solid fa-trophy trophy-gold"></i>
                                         @elseif($i+1 == 2)
-                                            <i class="fa-solid fa-trophy" style="color: silver;"></i>
+                                            <i class="fa-solid fa-trophy trophy-silver"></i>
                                         @elseif($i+1 == 3)
-                                            <i class="fa-solid fa-trophy" style="color: #cd7f32;"></i>
+                                            <i class="fa-solid fa-trophy trophy-bronze"></i>
                                         @else
                                             <span class="d-inline-flex justify-content-center align-items-center me-1"
                                                   style="width:28px;height:28px;border-radius:50%;background:#f1f1f1;font-weight:600;">
@@ -111,11 +111,11 @@
                                         @if($i+1 <= 3)
                                             {{-- กรณีไม่มีข้อมูล แต่อยากให้หัวตารางสวยสม่ำเสมอ --}}
                                             @if($i+1 == 1)
-                                                <i class="fa-solid fa-trophy" style="color: gold;"></i> {{ $i+1 }}
+                                                  <i class="fa-solid fa-trophy trophy-gold"></i> {{ $i+1 }}
                                             @elseif($i+1 == 2)
-                                                <i class="fa-solid fa-trophy" style="color: silver;"></i> {{ $i+1 }}
+                                                  <i class="fa-solid fa-trophy trophy-silver"></i> {{ $i+1 }}
                                             @else
-                                                <i class="fa-solid fa-trophy" style="color: #cd7f32;"></i> {{ $i+1 }}
+                                                  <i class="fa-solid fa-trophy trophy-bronze"></i> {{ $i+1 }}
                                             @endif
                                         @else
                                             <span class="d-inline-flex justify-content-center align-items-center me-1"
@@ -154,11 +154,11 @@
                                 <tr>
                                     <th>
                                         @if($i+1 == 1)
-                                            <i class="fa-solid fa-trophy" style="color: gold;"></i>
+                                            <i class="fa-solid fa-trophy trophy-gold"></i>
                                         @elseif($i+1 == 2)
-                                            <i class="fa-solid fa-trophy" style="color: silver;"></i>
+                                            <i class="fa-solid fa-trophy trophy-silver"></i>
                                         @elseif($i+1 == 3)
-                                            <i class="fa-solid fa-trophy" style="color: #cd7f32;"></i>
+                                            <i class="fa-solid fa-trophy trophy-bronze"></i>
                                         @else
                                             <span class="d-inline-flex justify-content-center align-items-center me-1"
                                                   style="width:28px;height:28px;border-radius:50%;background:#f1f1f1;font-weight:600;">
@@ -184,11 +184,11 @@
                                     <th>
                                         @if($i+1 <= 3)
                                             @if($i+1 == 1)
-                                                <i class="fa-solid fa-trophy" style="color: gold;"></i> {{ $i+1 }}
+                                                  <i class="fa-solid fa-trophy trophy-gold"></i> {{ $i+1 }}
                                             @elseif($i+1 == 2)
-                                                <i class="fa-solid fa-trophy" style="color: silver;"></i> {{ $i+1 }}
+                                                  <i class="fa-solid fa-trophy trophy-silver"></i> {{ $i+1 }}
                                             @else
-                                                <i class="fa-solid fa-trophy" style="color: #cd7f32;"></i> {{ $i+1 }}
+                                                  <i class="fa-solid fa-trophy trophy-bronze"></i> {{ $i+1 }}
                                             @endif
                                         @else
                                             <span class="d-inline-flex justify-content-center align-items-center me-1"
