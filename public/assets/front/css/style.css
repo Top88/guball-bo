@@ -73,7 +73,7 @@
 }
 
 .btn.btn-primary {
-    background: #d70000 !important;
+    background: #FF6600 !important;
     color: var(--bs-white) !important;
     font-family: 'Kanit', sans-serif;
     border: none;
@@ -82,7 +82,7 @@
 }
 
 .btn.btn-primary:hover {
-    background: #a30000 !important;
+    background: #CC5200 !important;
     color: var(--bs-light) !important;
 }
 

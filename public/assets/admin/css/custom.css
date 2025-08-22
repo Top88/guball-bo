@@ -16,27 +16,29 @@ a:link, a:visited, a:hover, a:active {
     border-bottom: 1px solid #dee2e600 !important;
 }
 .bg-dark {
-    background: linear-gradient(to bottom, #061435, #000c27, #03001a);
+    background: linear-gradient(to bottom, #000000, #b1b1b1, #ff5002);
 }
 @media only screen and (max-width: 600px) {
     table {
         thead tr {
             height: 60px;
-            background: #000102;
+            background: #000000;
+            border-bottom: 2px solid #ff5002;
             font-size: 12px;
-            color: #e9ecef;
+            color: #f8f9fa;
         }
     }
 }
 table {
     thead tr {
         height: 60px;
-        background: #000102;
+        background: #000000;
+        border-bottom: 2px solid #ff5002;
         font-size: 18px;
-        color: #e9ecef;
+        color: #f8f9fa;
     }
 }
 .copyright {
     border-top: 1px solid rgba(255, 255, 255, 0.08);
-    background: linear-gradient(to bottom, #061435, #000c27, #03001a);
+    background: linear-gradient(to bottom, #000000, #b1b1b1, #ff5002);
 }

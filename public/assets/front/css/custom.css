@@ -143,3 +143,7 @@ clear: both;
     box-shadow: inset 2px 2px 4px 0 #ccc;
     color: #666;
 }
+.trophy-gold { color: #FFD700; }
+.trophy-silver { color: #C0C0C0; }
+.trophy-bronze { color: #CD7F32; }
+
