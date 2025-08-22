@@ -2,24 +2,21 @@
     global $loop;
     use App\Domain\Football\Match\PredictionResult;
 
-    // ใช้ตัวแปร $type จากคอมโพเนนต์ เพื่อดูว่าเป็นหน้าเต็งหรือสเต็ป
     $isStep = ($type ?? 'single') === 'step';
 
-    // ฟังก์ชันช่วยกรอง collection ให้เหลือเฉพาะชนิดที่ต้องการ
     $filterPreds = function ($collection) use ($isStep) {
         if (!$collection) return collect();
         $want = $isStep ? 'step' : 'single';
         return $collection->filter(fn($p) => strtolower(trim($p->type ?? '')) === $want);
     };
 
-    // ฟังก์ชันสรุปผลลัพธ์ W/D/L และคะแนนจาก gain_amount (อิง enum PredictionResult)
     $sumStats = function ($preds) {
         return [
             'win'      => $preds->where('result', PredictionResult::WIN->value)->count(),
             'win_half' => $preds->where('result', PredictionResult::HALF->value)->count(),
             'draw'     => $preds->where('result', PredictionResult::DRAW->value)->count(),
             'lose'     => $preds->where('result', PredictionResult::LOSE->value)->count(),
-            'points'   => (float) $preds->sum('gain_amount'),
+            'points'   => (float) $preds->sum('gain_amount'), // แต้มฐาน (ไม่รวมโบนัส)
         ];
     };
 @endphp
@@ -27,69 +24,102 @@
 <div>
     <div class="container-fluid about py-5">
         {{-- ====== รายสัปดาห์ ====== --}}
-        <div class="container">
+        <div class="container mb-5">
             <div class="text-center mx-auto" style="max-width: 800px;">
                 <h1>อันดับคะแนน ประจำสัปดาห์ ({{ $isStep ? 'บอลสเต็ป' : 'บอลเต็ง' }})</h1>
+                <p class="small text-white">
+                    *** เริ่มนับผลอันดับคะแนนใหม่ทุกวันอังคาร
+                </p>
             </div>
 
-            <table>
-                <thead>
-                    <tr>
-                        <th>อันดับ</th>
-                        <th>ชื่อเล่น</th>
-                        <th class="d-none d-sm-block mt-0">10 ผลงานล่าสุด</th>
-                        <th>ชนะ</th>
-                        <th>ชนะครึ่ง</th>
-                        <th>เสมอ</th>
-                        <th>แพ้</th>
-                        <th>คะแนน</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach ($top_rank_list_by_week as $key => $item)
-                        @php
-                            $currentRank = $loop->iteration + (($top_rank_list_by_week->currentPage()-1) * $top_rank_list_by_week->perPage());
-                            $preds = $filterPreds($item->gameFootBallPrediction ?? collect());
-                            $stats = $sumStats($preds);
-                        @endphp
-                        <tr wire:key="wk-{{ $item->id }}-{{ $currentRank }}">
-                            <td>{{ $currentRank }}</td>
-                            <td>
-                                <a class="text-dark">{{ $item->nick_name }}</a>
-                                @php $authId = auth()->id(); @endphp
+            {{-- ค้นหา รายสัปดาห์ --}}
+            <div class="row g-2 align-items-center mb-3">
+                <div class="col-12 col-md-6">
+                    <input
+                        type="text"
+                        id="searchWeekInput"
+                        class="form-control"
+                        placeholder="ค้นหาชื่อเล่น - รายสัปดาห์"
+                        wire:model.debounce.500ms="searchWeek"
+                        aria-label="ค้นหาอันดับรายสัปดาห์"
+                    >
+                </div>
+                <div class="col-12 col-md-auto d-flex gap-2">
+                    <button type="button" class="btn btn-primary" wire:click="applySearchWeek">
+                        <i class="fas fa-search"></i> ค้นหา
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" wire:click="$set('searchWeek','')">
+                        ล้าง
+                    </button>
+                </div>
+            </div>
 
-                                @if ($item->id === $authId)
-                                    <span style="color:goldenrod"><i class="fas fa-solid fa-trophy"></i></span>
-
-                                @elseif (!empty($item->targetViewPrediction) && count($item->targetViewPrediction) > 0)
-                                    <button type="button" class="btn btn-primary btn-sm"
-                                        wire:click.prevent="viewPredictionResult('{{ $item->id }}')">
-                                        <i class="fas fa-search"></i> ดูผลล่าสุด
-                                    </button>
-
-                                @elseif (!empty($item->predic_today_count) && (int)$item->predic_today_count > 0)
-                                    <button type="button" class="btn btn-primary btn-sm"
-                                        wire:click.prevent="selectViewPrediction('{{ $item->id }}', {{ $currentRank }})">
-                                        <i class="fas fa-search"></i> ใช้เหรียญเงินดูผลล่าสุด
-                                    </button>
-                                @endif
-                            </td>
-                            <td class="d-none d-sm-block mt-1">
-                                <div style="text-align:center">
-                                    @foreach ($preds->take(10) as $prediction)
-                                        {!! PredictionResult::toBadge($prediction->result ?? null) !!}
-                                    @endforeach
-                                </div>
-                            </td>
-                            <td>{{ $stats['win'] }}</td>
-                            <td>{{ $stats['win_half'] }}</td>
-                            <td>{{ $stats['draw'] }}</td>
-                            <td>{{ $stats['lose'] }}</td>
-                            <td>{{ $stats['points'] }}</td>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr class="text-nowrap">
+                            <th>อันดับ</th>
+                            <th>ชื่อเล่น</th>
+                            <th class="d-none d-sm-table-cell">10 ผลงานล่าสุด</th>
+                            <th>ชนะ</th>
+                            <th>ชนะครึ่ง</th>
+                            <th>เสมอ</th>
+                            <th>แพ้</th>
+                            <th>คะแนน</th>
                         </tr>
-                    @endforeach
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @foreach ($top_rank_list_by_week as $key => $item)
+                            @php
+                                $preds = $filterPreds($item->gameFootBallPrediction ?? collect());
+                                $stats = $sumStats($preds);
+                                // แต้มที่ใช้จัดอันดับจากคอมโพเนนต์ (ฐาน+โบนัสถ้า type=step), fallback เป็นฐาน
+                                $displayPoints = isset($item->points) ? (float) $item->points : (float) $stats['points'];
+
+                                // ลำดับจริงที่คอมโพเนนต์คำนวณมาให้
+                                $realRank = $item->rank_real ?? null;
+                                // fallback กันพลาด
+                                $fallbackRank = $loop->iteration + (($top_rank_list_by_week->currentPage()-1) * $top_rank_list_by_week->perPage());
+                                $showRank = $realRank ?: $fallbackRank;
+                            @endphp
+                            <tr wire:key="wk-{{ $item->id }}-{{ $showRank }}">
+                                <td>{{ $showRank }}</td>
+                                <td class="text-nowrap">
+                                    <a class="text-dark">{{ $item->nick_name }}</a>
+                                    @php $authId = auth()->id(); @endphp
+                                    @if ($item->id === $authId)
+                                        <span class="ms-1" style="color:goldenrod"><i class="fas fa-trophy"></i></span>
+                                    @elseif (!empty($item->targetViewPrediction) && count($item->targetViewPrediction) > 0)
+                                        <button type="button" class="btn btn-primary btn-sm ms-2"
+                                            wire:click.prevent="viewPredictionResult('{{ $item->id }}')">
+                                            <i class="fas fa-search"></i> ดูผลล่าสุด
+                                        </button>
+                                    @elseif (!empty($item->predic_today_count) && (int)$item->predic_today_count > 0)
+                                        {{-- ส่ง "อันดับจริง" เข้าไป ให้ระบบคิดค่าสิทธิ์ได้ถูกต้อง --}}
+                                        <button type="button" class="btn btn-primary btn-sm ms-2"
+                                            wire:click.prevent="selectViewPrediction('{{ $item->id }}', {{ $showRank }})">
+                                            <i class="fas fa-search"></i> ใช้เหรียญเงินดูผลล่าสุด
+                                        </button>
+                                    @endif
+                                </td>
+                                <td class="d-none d-sm-table-cell">
+                                    <div class="text-center">
+                                        @foreach ($preds->take(10) as $prediction)
+                                            {!! PredictionResult::toBadge($prediction->result ?? null) !!}
+                                        @endforeach
+                                    </div>
+                                </td>
+                                <td>{{ $stats['win'] }}</td>
+                                <td>{{ $stats['win_half'] }}</td>
+                                <td>{{ $stats['draw'] }}</td>
+                                <td>{{ $stats['lose'] }}</td>
+                                <td>{{ number_format($displayPoints, 0) }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+
             {{ $top_rank_list_by_week->links(data: ['scrollTo' => false]) }}
         </div>
 
@@ -99,55 +129,84 @@
                 <h1>อันดับคะแนน ประจำเดือน ({{ $isStep ? 'บอลสเต็ป' : 'บอลเต็ง' }})</h1>
             </div>
 
-            <table>
-                <thead>
-                    <tr>
-                        <th>อันดับ</th>
-                        <th>ชื่อเล่น</th>
-                        <th class="d-none d-sm-block mt-0">10 ผลงานล่าสุด</th>
-                        <th>ชนะ</th>
-                        <th>ชนะครึ่ง</th>
-                        <th>เสมอ</th>
-                        <th>แพ้</th>
-                        <th>คะแนน</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach ($top_rank_list_by_month as $key => $item)
-                        @php
-                            $currentRank = $loop->iteration + (($top_rank_list_by_month->currentPage()-1) * $top_rank_list_by_month->perPage());
-                            $preds = $filterPreds($item->gameFootBallPrediction ?? collect());
-                            $stats = $sumStats($preds);
-                        @endphp
-                        <tr wire:key="mn-{{ $item->id }}-{{ $currentRank }}">
-                            <td>{{ $currentRank }}</td>
-                            <td>
-                                <a class="text-dark">{{ $item->nick_name }}</a>
-                                @if ($item->id === auth()->id())
-                                    <span style="color:goldenrod"><i class="fas fa-solid fa-trophy"></i></span>
-                                @endif
-                            </td>
-                            <td class="d-none d-sm-block mt-1">
-                                <div style="text-align:center">
-                                    @foreach ($preds->take(10) as $prediction)
-                                        {!! PredictionResult::toBadge($prediction->result ?? null) !!}
-                                    @endforeach
-                                </div>
-                            </td>
-                            <td>{{ $stats['win'] }}</td>
-                            <td>{{ $stats['win_half'] }}</td>
-                            <td>{{ $stats['draw'] }}</td>
-                            <td>{{ $stats['lose'] }}</td>
-                            <td>{{ $stats['points'] }}</td>
+            {{-- ค้นหา รายเดือน --}}
+            <div class="row g-2 align-items-center mb-3">
+                <div class="col-12 col-md-6">
+                    <input
+                        type="text"
+                        id="searchMonthInput"
+                        class="form-control"
+                        placeholder="ค้นหาชื่อเล่น - รายเดือน"
+                        wire:model.debounce.500ms="searchMonth"
+                        aria-label="ค้นหาอันดับรายเดือน"
+                    >
+                </div>
+                <div class="col-12 col-md-auto d-flex gap-2">
+                    <button type="button" class="btn btn-primary" wire:click="applySearchMonth">
+                        <i class="fas fa-search"></i> ค้นหา
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" wire:click="$set('searchMonth','')">
+                        ล้าง
+                    </button>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr class="text-nowrap">
+                            <th>อันดับ</th>
+                            <th>ชื่อเล่น</th>
+                            <th class="d-none d-sm-table-cell">10 ผลงานล่าสุด</th>
+                            <th>ชนะ</th>
+                            <th>ชนะครึ่ง</th>
+                            <th>เสมอ</th>
+                            <th>แพ้</th>
+                            <th>คะแนน</th>
                         </tr>
-                    @endforeach
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @foreach ($top_rank_list_by_month as $key => $item)
+                            @php
+                                $preds = $filterPreds($item->gameFootBallPrediction ?? collect());
+                                $stats = $sumStats($preds);
+                                $displayPoints = isset($item->points) ? (float) $item->points : (float) $stats['points'];
+
+                                $realRank = $item->rank_real ?? null;
+                                $fallbackRank = $loop->iteration + (($top_rank_list_by_month->currentPage()-1) * $top_rank_list_by_month->perPage());
+                                $showRank = $realRank ?: $fallbackRank;
+                            @endphp
+                            <tr wire:key="mn-{{ $item->id }}-{{ $showRank }}">
+                                <td>{{ $showRank }}</td>
+                                <td class="text-nowrap">
+                                    <a class="text-dark">{{ $item->nick_name }}</a>
+                                    @if ($item->id === auth()->id())
+                                        <span class="ms-1" style="color:goldenrod"><i class="fas fa-trophy"></i></span>
+                                    @endif
+                                </td>
+                                <td class="d-none d-sm-table-cell">
+                                    <div class="text-center">
+                                        @foreach ($preds->take(10) as $prediction)
+                                            {!! PredictionResult::toBadge($prediction->result ?? null) !!}
+                                        @endforeach
+                                    </div>
+                                </td>
+                                <td>{{ $stats['win'] }}</td>
+                                <td>{{ $stats['win_half'] }}</td>
+                                <td>{{ $stats['draw'] }}</td>
+                                <td>{{ $stats['lose'] }}</td>
+                                <td>{{ number_format($displayPoints, 0) }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+
             {{ $top_rank_list_by_month->links(data: ['scrollTo' => false]) }}
         </div>
     </div>
 
-    {{-- ===== Modal ใช้เหรียญดูผล (ต้องมีบนหน้านี้) ===== --}}
+    {{-- ===== Modal ใช้เหรียญดูผล ===== --}}
     <div wire:teleport="body">
         <div wire:ignore.self class="modal fade" id="view-prediction-modal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
@@ -178,7 +237,7 @@
         </div>
     </div>
 
-    {{-- ===== Script คุม Modal: ไม่พึ่ง @stack('scripts') ===== --}}
+    {{-- ===== Script คุม Modal ===== --}}
     <script>
     document.addEventListener('livewire:initialized', () => {
         const modalEl = document.getElementById('view-prediction-modal');
@@ -186,12 +245,13 @@
 
         const viewPredictionModal = new bootstrap.Modal(modalEl);
 
-        // เปิด/ปิดจากฝั่งคอมโพเนนต์
         window.addEventListener('open-view-prediction-modal', () => viewPredictionModal.show());
         window.addEventListener('hide-view-prediction-modal',  () => viewPredictionModal.hide());
 
         modalEl.addEventListener('hidden.bs.modal', () => {
-            if (window.Livewire) Livewire.dispatch('closeModal');
+            if (window.Livewire && Livewire.emit) {
+                Livewire.emit('closeModal');
+            }
         });
     });
     </script>

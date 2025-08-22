@@ -79,19 +79,10 @@
                                 @endphp
                                 <tr>
                                     <th>
-                                        @if($i+1 == 1)
-                                            <i class="fa-solid fa-trophy" style="color: gold;"></i>
-                                        @elseif($i+1 == 2)
-                                            <i class="fa-solid fa-trophy" style="color: silver;"></i>
-                                        @elseif($i+1 == 3)
-                                            <i class="fa-solid fa-trophy" style="color: #cd7f32;"></i>
-                                        @else
-                                            <span class="d-inline-flex justify-content-center align-items-center me-1"
-                                                  style="width:28px;height:28px;border-radius:50%;background:#f1f1f1;font-weight:600;">
-                                                {{ $i+1 }}
-                                            </span>
-                                        @endif
-                                        @if($i+1 <= 3) {{ $i+1 }} @endif
+                                        <span class="d-inline-flex justify-content-center align-items-center me-1"
+                                              style="width:28px;height:28px;border-radius:50%;background:#f1f1f1;font-weight:600;">
+                                            {{ $i+1 }}
+                                        </span>
                                     </th>
                                     <td><a class="text-dark">{{ $sianAccurateWeek[$i]?->user->nick_name }}</a></td>
                                     <td style="min-width:180px">
@@ -108,21 +99,10 @@
                             @else
                                 <tr>
                                     <th>
-                                        @if($i+1 <= 3)
-                                            {{-- กรณีไม่มีข้อมูล แต่อยากให้หัวตารางสวยสม่ำเสมอ --}}
-                                            @if($i+1 == 1)
-                                                <i class="fa-solid fa-trophy" style="color: gold;"></i> {{ $i+1 }}
-                                            @elseif($i+1 == 2)
-                                                <i class="fa-solid fa-trophy" style="color: silver;"></i> {{ $i+1 }}
-                                            @else
-                                                <i class="fa-solid fa-trophy" style="color: #cd7f32;"></i> {{ $i+1 }}
-                                            @endif
-                                        @else
-                                            <span class="d-inline-flex justify-content-center align-items-center me-1"
-                                                  style="width:28px;height:28px;border-radius:50%;background:#f1f1f1;font-weight:600;">
-                                                {{ $i+1 }}
-                                            </span>
-                                        @endif
+                                        <span class="d-inline-flex justify-content-center align-items-center me-1"
+                                              style="width:28px;height:28px;border-radius:50%;background:#f1f1f1;font-weight:600;">
+                                            {{ $i+1 }}
+                                        </span>
                                     </th>
                                     <td></td>
                                     <td></td>
@@ -153,19 +133,10 @@
                                 @endphp
                                 <tr>
                                     <th>
-                                        @if($i+1 == 1)
-                                            <i class="fa-solid fa-trophy" style="color: gold;"></i>
-                                        @elseif($i+1 == 2)
-                                            <i class="fa-solid fa-trophy" style="color: silver;"></i>
-                                        @elseif($i+1 == 3)
-                                            <i class="fa-solid fa-trophy" style="color: #cd7f32;"></i>
-                                        @else
-                                            <span class="d-inline-flex justify-content-center align-items-center me-1"
-                                                  style="width:28px;height:28px;border-radius:50%;background:#f1f1f1;font-weight:600;">
-                                                {{ $i+1 }}
-                                            </span>
-                                        @endif
-                                        @if($i+1 <= 3) {{ $i+1 }} @endif
+                                        <span class="d-inline-flex justify-content-center align-items-center me-1"
+                                              style="width:28px;height:28px;border-radius:50%;background:#f1f1f1;font-weight:600;">
+                                            {{ $i+1 }}
+                                        </span>
                                     </th>
                                     <td><a class="text-dark">{{ $sianAccurateMonth[$i]?->user->nick_name }}</a></td>
                                     <td style="min-width:180px">
@@ -182,20 +153,10 @@
                             @else
                                 <tr>
                                     <th>
-                                        @if($i+1 <= 3)
-                                            @if($i+1 == 1)
-                                                <i class="fa-solid fa-trophy" style="color: gold;"></i> {{ $i+1 }}
-                                            @elseif($i+1 == 2)
-                                                <i class="fa-solid fa-trophy" style="color: silver;"></i> {{ $i+1 }}
-                                            @else
-                                                <i class="fa-solid fa-trophy" style="color: #cd7f32;"></i> {{ $i+1 }}
-                                            @endif
-                                        @else
-                                            <span class="d-inline-flex justify-content-center align-items-center me-1"
-                                                  style="width:28px;height:28px;border-radius:50%;background:#f1f1f1;font-weight:600;">
-                                                {{ $i+1 }}
-                                            </span>
-                                        @endif
+                                        <span class="d-inline-flex justify-content-center align-items-center me-1"
+                                              style="width:28px;height:28px;border-radius:50%;background:#f1f1f1;font-weight:600;">
+                                            {{ $i+1 }}
+                                        </span>
                                     </th>
                                     <td></td>
                                     <td></td>
@@ -225,7 +186,7 @@
                             </h2>
                             <div id="collapseOne" class="accordion-collapse collapse show">
                                 <div class="accordion-body my-2">
-                                    <h6>1. ลูกค้าสามารถเข้าร่วมกิจกรรมได้ฟรี เพียงสมัครเป็นสมาชิกเว็บ GUBET.COM</h6>
+                                    <h6>1. ลูกค้าสามารถเข้าร่วมกิจกรรมได้ฟรี เพียงสมัครเป็นสมาชิกเว็บ GUBET.NET</h6>
                                     <h6>2. ลูกค้าสามารถเลือกทายผลฟุตบอลได้เพียงวันละ 3 คู่ เท่านั้น</h6>
                                     <h6>3. เมื่อลูกค้าเลือกทายผลฟุตบอลครบทั้ง 3 คู่แล้ว ให้ยืนยันด้วยการคลิกปุ่ม "ทายผล" ด้านล่าง</h6>
                                     <h6>4. หากลูกค้าเลือกทายผลผิดคู่หรือผิดฝั่งสามารถแก้ไขได้ด้วยการคลิกปุ่ม "รีเซ็ต"ด้านล่าง</h6>
@@ -251,3 +212,4 @@
         </div>
     </div>
     <!-- End -->
+</div>

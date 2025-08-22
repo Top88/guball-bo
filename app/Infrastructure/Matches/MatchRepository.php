@@ -7,6 +7,7 @@ use App\Infrastructure\Matches\Enums\MatchStatus;
 use App\Models\GameFootballMatch;
 use Carbon\Carbon;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 
 readonly class MatchRepository
 {
@@ -99,5 +100,26 @@ readonly class MatchRepository
             'match_date' => $matchDate->toDateTimeString(),
             'status' => MatchStatus::ACTIVE->value,
         ]);
+    }
+
+    /**
+     * ดึงรายการแมตช์ที่สรุปผลแล้วตามช่วงวันที่กำหนด
+     *
+         * @param Carbon $start
+     * @param Carbon $end
+     * @return Collection
+     */
+    public function getFinishedMatches(Carbon $start, Carbon $end): Collection
+    {
+        return $this->gameFootballMatch
+            ->with(['result', 'homeTeam', 'awayTeam'])
+            ->whereBetween('match_date', [
+                $start->startOfDay()->toDateTimeString(),
+                $end->endOfDay()->toDateTimeString(),
+            ])
+            ->where('status', MatchStatus::FINISHED->value)
+            ->orderBy('match_date')
+            ->get()
+            ->groupBy(fn($m) => Carbon::parse($m->match_date)->toDateString());
     }
 }

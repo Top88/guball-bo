@@ -1,19 +1,25 @@
-
 <div>
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <!-- Add User Button -->
+        {{-- Add Match --}}
         @can('create-match')
         <button type="button" class="btn btn-primary" wire:click="openMatchModal('add')">
             {{ __('website.button.add_match') }}
         </button>
         @endcan
 
-        <!-- Search Input -->
+        {{-- Search --}}
         <div class="col-lg-3 col-sm-12">
             <div class="input-group">
-                <input type="text" class="form-control" id="matchManagementSearch" wire:model="search"
-                    wire:keydown.enter.prevent="searchData" placeholder="ค้นหา" aria-label="ค้นหา"
-                    aria-describedby="basic-addon2">
+                <input
+                    type="text"
+                    class="form-control"
+                    id="matchManagementSearch"
+                    wire:model="search"
+                    wire:keydown.enter.prevent="searchData"
+                    placeholder="ค้นหา"
+                    aria-label="ค้นหา"
+                    aria-describedby="basic-addon2"
+                >
                 <button class="btn btn-outline-secondary" type="button" wire:click.prevent="searchData">
                     <i class="fas fa-search"></i>
                 </button>
@@ -35,65 +41,105 @@
                 <th class="text-nowrap">{{ __('website.general.created_at') }}</th>
             </tr>
         </thead>
+
         <tbody>
             @if ($matches->isEmpty())
                 <tr>
-                    <td colspan="7" class="text-center">{{ __('website.general.no_data') }}</td>
+                    <td colspan="9" class="text-center">{{ __('website.general.no_data') }}</td>
                 </tr>
             @endif
+
             @foreach ($matches as $match)
-                <tr wire:key='{{ $match->id }}'>
-                    <td>
-                        @if ($match->status === 'active')
-                            @can('update-match-result')
-                                <a href="javascript:" class="btn btn-xs btn-success"
-                                    wire:click="openMatchResultModal('edit', {{ $match }})" title="ผลการแข่งขัน">
-                                    <i class="fa-solid fa-trophy"></i>
-                                </a>
-                            @endcan
-                        @endif
-                        @if (!in_array($match->status, ['finished']))
+                @php
+                    $isFinished = ($match->status === 'finished');
+                    // ปุ่มถ้วย: ถ้ายังไม่ประกาศผล = add, ถ้าประกาศแล้ว = edit (เพื่อแก้ย้อนหลัง)
+                    $resultActionType = $isFinished ? 'edit' : 'add';
+                @endphp
+
+                <tr wire:key="match-{{ $match->id }}">
+                    <td class="text-nowrap">
+                        @can('update-match-result')
+                            {{-- ปุ่มสรุป/แก้ผล --}}
+                            <a href="javascript:" class="btn btn-xs {{ $isFinished ? 'btn-warning' : 'btn-success' }}"
+                               title="{{ $isFinished ? 'แก้ผล' : 'สรุปผล' }}"
+                               wire:click="openMatchResultModal(
+                                   '{{ $resultActionType }}',
+                                   @js([
+                                       'id'           => $match->id,
+                                       'home_team_id' => $match->home_team_id,
+                                       'away_team_id' => $match->away_team_id,
+                                   ])
+                               )">
+                                <i class="fa-solid fa-trophy"></i>
+                            </a>
+                        @endcan
+
+                        {{-- ปุ่มแก้ไข/ลบ รายการแข่ง (ซ่อนเมื่อ finished) --}}
+                        @if (!$isFinished)
                             @can('edit-match')
                                 <a href="javascript:" class="btn btn-xs btn-primary"
-                                    wire:click="openMatchModal('edit', {{ $match }})" title="แก้ไข">
+                                   wire:click="openMatchModal('edit', @js($match->only(['id','league_id','home_team_id','away_team_id','rate','match_date','status'])))"
+                                   title="แก้ไข">
                                     <i class="fa-solid fa-pen"></i>
                                 </a>
                             @endcan
                             @can('delete-match')
                                 <a href="javascript:" class="btn btn-xs btn-danger"
-                                    wire:click="deleteMatch({{ $match->id }})" title="ลบ">
+                                   wire:click="deleteMatch({{ $match->id }})" title="ลบ">
                                     <i class="fas fa-trash"></i>
                                 </a>
                             @endcan
                         @endif
-
                     </td>
-                    <td> {{ __('website.match_status.' . $match->status) }} </td>
-                    <td> {{ substr($match->match_date, 0, -3) }} </td>
-                    <td> {{ $match->league?->name }} </td>
+
+                    {{-- สถานะ --}}
+                    <td>{{ __('website.match_status.' . $match->status) }}</td>
+
+                    {{-- วันที่แข่ง (กัน null/ชนิดข้อมูล) --}}
                     <td>
-                        @if ($match->result?->team_match_result === 'home')
+                        {{ \Carbon\Carbon::parse($match->match_date ?? $match->match_datetime ?? $match->created_at)->format('Y-m-d H:i') }}
+                    </td>
+
+                    {{-- ลีก --}}
+                    <td>{{ $match->league?->name }}</td>
+
+                    {{-- เจ้าบ้าน (แสดงถ้วยฝั่งชนะ) --}}
+                    <td>
+                        @if (($match->result?->team_match_result ?? null) === 'home')
                             <span style="color:goldenrod"><i class="fa-solid fa-trophy"></i></span>
                         @endif
                         {{ $match->homeTeam?->name }}
                     </td>
+
+                    {{-- ทีมเยือน (แสดงถ้วยฝั่งชนะ) --}}
                     <td>
-                        @if ($match->result?->team_match_result === 'away')
+                        @if (($match->result?->team_match_result ?? null) === 'away')
                             <span style="color:goldenrod"><i class="fa-solid fa-trophy"></i></span>
                         @endif
                         {{ $match->awayTeam?->name }}
                     </td>
-                    <td> {{$match->rate}} </td>
-                    <td>
-                        @if ($match->status === 'finished')
-                            @if ($match->result->team_match_result === 'draw')
-                                เสมอ
+
+                    {{-- อัตราต่อรอง --}}
+                    <td>{{ $match->rate }}</td>
+
+                    {{-- ผลการแข่งขัน (กัน null 100%) --}}
+                    <td class="text-center">
+                        @php $r = $match->result; @endphp
+                        @if ($isFinished)
+                            @if ($r && ($r->team_match_result === 'draw'))
+                                {{ __('website.general.draw') }}
+                            @elseif ($r && $r->home_team_goal !== null && $r->away_team_goal !== null)
+                                {{ $r->home_team_goal }} - {{ $r->away_team_goal }}
                             @else
-                                {{ $match->result->home_team_goal }} - {{ $match->result->away_team_goal }}
+                                -
                             @endif
+                        @else
+                            -
                         @endif
                     </td>
-                    <td> {{ $match->created_at }} </td>
+
+                    {{-- วันที่สร้าง --}}
+                    <td>{{ $match->created_at }}</td>
                 </tr>
             @endforeach
         </tbody>

@@ -4,7 +4,6 @@ namespace App\Livewire;
 
 use App\Domain\Coin\SilverCoinHistroryAction;
 use App\Domain\SweetAlert\NormalAlert;
-use App\Models\GameFootballPrediction;
 use App\Models\User;
 use App\Models\UserFootballPredictionStatistics;
 use App\Models\UserSilverCoinTransactionLog;
@@ -23,15 +22,16 @@ class PredictionRank extends Component
 {
     use WithPagination, WithoutUrlPagination;
 
-    private const ALLOWED_TYPES = ['single','step'];
+    private const ALLOWED_TYPES = ['single', 'step'];
 
     public ?string $targetViewPredictionId = null;
     public float $costForPrediction = 0;
-
-    // single | step
     public string $type = 'single';
 
-    /** บังคับให้ type เป็นค่าใน ALLOWED_TYPES เท่านั้น */
+    // ช่องค้นหา (ค้นหาเฉพาะ nick_name)
+    public ?string $searchWeek  = null;
+    public ?string $searchMonth = null;
+
     private function canonical(string $t): string
     {
         $t = strtolower(trim($t));
@@ -40,11 +40,11 @@ class PredictionRank extends Component
 
     public function mount(string $type = 'single'): void
     {
-        $q = request('type'); // รองรับ ?type=...
+        $q = request('type');
         $this->type = $this->canonical($q ?: $type);
     }
 
-    /** Helpers */
+    /** Filters */
     private function applyTypeFilter($query)
     {
         return $query->where('type', $this->type);
@@ -75,14 +75,35 @@ class PredictionRank extends Component
         return (float) $val;
     }
 
-    // helper redirect — บังคับติด query ?type=
     private function goToViewPrediction(string $userId): void
     {
         $url = route('view-prediction', ['userId' => $userId]) . '?type=' . $this->type;
         $this->redirect($url, navigate: true);
     }
 
-    /** อันดับรวม */
+    /** ===== Search helpers (nick_name เท่านั้น) ===== */
+    private function escapeLike(string $v): string
+    {
+        return str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $v);
+    }
+
+    private function applyUserSearch($query, ?string $term)
+    {
+        $term = trim((string) $term);
+        if ($term === '') return $query;
+        $safe = $this->escapeLike($term);
+        return $query->where('users.nick_name', 'like', "%{$safe}%");
+    }
+
+    // reset page เมื่อพิมพ์
+    public function updatedSearchWeek(): void  { $this->resetPage('rank-week-page'); }
+    public function updatedSearchMonth(): void { $this->resetPage('rank-month-page'); }
+
+    // ปุ่มค้นหา
+    public function applySearchWeek(): void  { $this->resetPage('rank-week-page'); }
+    public function applySearchMonth(): void { $this->resetPage('rank-month-page'); }
+
+    /** อันดับรวม (ยังคงเดิมตามสถิติรวม) */
     #[Computed]
     public function getTopRank(): LengthAwarePaginator
     {
@@ -98,7 +119,6 @@ class PredictionRank extends Component
                                     ->orderBy('id', 'desc')
                                     ->limit(10);
                             },
-                            // ✅ สิทธิ์ดู: ผูกตามประเภทด้วย
                             'targetViewPrediction' => function (HasMany $query) {
                                 $query->where('asking_user_id', auth()->id())
                                       ->where('type', $this->type)
@@ -118,136 +138,226 @@ class PredictionRank extends Component
             ->paginate(10, pageName: 'rank-all-page');
     }
 
-    /** รายสัปดาห์ */
+    /** ===== รายสัปดาห์ ===== */
     #[Computed]
     public function getTopRankByWeek(): LengthAwarePaginator
     {
-        $startWeekDay   = (int) config('settings.show_rank_week_day', 0);
-        $endDateOfWeek  = Carbon::now()->next($startWeekDay);
-        $starDateOfWeek = $endDateOfWeek->copy()->startOfDay()->subDays(7);
+        $start = now()->copy()->startOfWeek(Carbon::MONDAY);
+        $end   = $start->copy()->addWeek(); // exclusive
+        $includeBonus = $this->type === 'step';
 
-        $subQuery = GameFootballPrediction::query()
-            ->selectRaw('SUM(gain_amount)')
-            ->whereColumn('user_id', 'users.id');
-        $this->applyTypeFilter($subQuery)
-            ->whereNotNull('result')
-            ->whereBetween('created_at', [
-                $starDateOfWeek->toDateTimeString(),
-                $endDateOfWeek->toDateTimeString()
-            ]);
+        $base = function ($q) use ($start, $end) {
+            $this->applyTypeFilter($q)
+                ->whereNotNull('result')
+                ->where('created_at', '>=', $start)
+                ->where('created_at', '<',  $end);
+            return $q;
+        };
+        $baseAll = function ($q) use ($start, $end) {
+            $this->applyTypeFilter($q)
+                ->where('created_at', '>=', $start)
+                ->where('created_at', '<',  $end);
+            return $q;
+        };
 
+        // โบนัสสเต็ปจาก log ภายในช่วงสัปดาห์
+        $bonusSub = DB::table('user_gold_coin_transaction_log')
+            ->selectRaw('COALESCE(SUM(`change`),0)')
+            ->whereColumn('user_id', 'users.id')
+            ->where('action', 'bonus_step3_fullwin')
+            ->whereBetween('created_at', [$start, $end]);
+
+        // === Query หลัก (ใส่ค้นหาได้)
         $result = User::query()
+            ->select('users.*')
+            ->selectSub($bonusSub, 'bonus_sum') // alias: bonus_sum
+            ->when($this->searchWeek, fn($q) => $this->applyUserSearch($q, $this->searchWeek))
             ->withCount('predicToday')
             ->with([
-                // ✅ สิทธิ์ดู: ผูกตามประเภทด้วย
                 'targetViewPrediction' => function (HasMany $query) {
                     $query->where('asking_user_id', auth()->id())
                           ->where('type', $this->type)
                           ->where('expired_date', '>', Carbon::now());
                 },
-                'gameFootBallPrediction' => function (HasMany $query) use ($starDateOfWeek, $endDateOfWeek) {
-                    $this->applyTypeFilter($query)
-                        ->whereNotNull('result')
-                        ->whereBetween('created_at', [
-                            $starDateOfWeek->toDateTimeString(),
-                            $endDateOfWeek->toDateTimeString()
-                        ])
-                        ->orderBy('created_at', 'desc')
-                        ->orderBy('id', 'desc')
-                        ->limit(10);
+                'gameFootBallPrediction' => function (HasMany $query) use ($base) {
+                    $base($query)->orderByDesc('created_at')->orderByDesc('id');
                 },
             ])
-            ->withWhereHas('gameFootBallPrediction', function ($query) use ($starDateOfWeek, $endDateOfWeek) {
-                $this->applyTypeFilter($query)
-                    ->whereNotNull('result')
-                    ->whereBetween('created_at', [
-                        $starDateOfWeek->toDateTimeString(),
-                        $endDateOfWeek->toDateTimeString()
-                    ]);
-            })
-            ->addSelect(['gain_sum' => $subQuery])
-            ->orderByDesc('gain_sum')
+            ->whereHas('gameFootBallPrediction', $base)
+
+            ->withSum(['gameFootBallPrediction as points_sum' => $base], 'gain_amount')
+            ->withCount(['gameFootBallPrediction as win'      => fn($q) => $base($q)->where('result', 'win')])
+            ->withCount(['gameFootBallPrediction as win_half' => fn($q) => $base($q)->whereIn('result', ['win_half', 'winhalf'])])
+            ->withCount(['gameFootBallPrediction as draw'     => fn($q) => $base($q)->where('result', 'draw')])
+            ->withCount(['gameFootBallPrediction as lose'     => fn($q) => $base($q)->where('result', 'lose')])
+
+            ->withCount(['gameFootBallPrediction as played'   => $base])
+            ->withCount(['gameFootBallPrediction as attempts' => $baseAll])
+
+            ->when(
+                $includeBonus,
+                fn($q) => $q->orderByDesc(DB::raw('COALESCE(points_sum,0) + COALESCE(bonus_sum,0)')),
+                fn($q) => $q->orderByDesc('points_sum')
+            )
+            ->orderByDesc('played')
+            ->orderByDesc('win')
+            ->orderByDesc('win_half')
+            ->orderByDesc('draw')
+            ->orderBy('lose')
+            ->orderBy('users.id')
             ->paginate(10, pageName: 'rank-week-page');
 
-        $result->getCollection()->transform(function ($user) {
-            $win = $winHalf = $draw = $lose = $points = 0;
-            $preds = ($user->gameFootBallPrediction ?? collect())->where('type', $this->type);
+        // === ทำ rank map จาก "ทั้งตาราง" (ไม่ใช้คำค้นหา) เพื่อได้อันดับจริง
+        $rankBase = User::query()
+            ->select('users.id')
+            ->selectSub($bonusSub, 'bonus_sum')
+            ->withSum(['gameFootBallPrediction as points_sum' => $base], 'gain_amount')
+            ->withCount(['gameFootBallPrediction as win'      => fn($q) => $base($q)->where('result', 'win')])
+            ->withCount(['gameFootBallPrediction as win_half' => fn($q) => $base($q)->whereIn('result', ['win_half', 'winhalf'])])
+            ->withCount(['gameFootBallPrediction as draw'     => fn($q) => $base($q)->where('result', 'draw')])
+            ->withCount(['gameFootBallPrediction as lose'     => fn($q) => $base($q)->where('result', 'lose')])
+            ->withCount(['gameFootBallPrediction as played'   => $base])
+            ->whereHas('gameFootBallPrediction', $base);
 
-            foreach ($preds as $p) {
-                $points += (float) $p->gain_amount;
-                switch ($p->result) {
-                    case 'win': $win++; break;
-                    case 'winhalf':
-                    case 'win_half': $winHalf++; break;
-                    case 'draw': $draw++; break;
-                    case 'lose': $lose++; break;
-                }
-            }
+        if ($includeBonus) {
+            $rankBase->orderByDesc(DB::raw('COALESCE(points_sum,0) + COALESCE(bonus_sum,0)'));
+        } else {
+            $rankBase->orderByDesc('points_sum');
+        }
 
-            $user->win      = $win;
-            $user->win_half = $winHalf;
-            $user->draw     = $draw;
-            $user->lose     = $lose;
-            $user->points   = $points;
+        $rankIds = $rankBase
+            ->orderByDesc('played')
+            ->orderByDesc('win')
+            ->orderByDesc('win_half')
+            ->orderByDesc('draw')
+            ->orderBy('lose')
+            ->orderBy('users.id')
+            ->pluck('users.id')
+            ->all();
+
+        $rankMap = [];
+        foreach ($rankIds as $idx => $uid) {
+            $rankMap[$uid] = $idx + 1; // อันดับจริง
+        }
+
+        // เติม points (ฐาน+โบนัสถ้า step) และอันดับจริงเข้า collection
+        $result->getCollection()->transform(function ($user) use ($rankMap, $includeBonus) {
+            $base   = (float) ($user->points_sum ?? 0);
+            $bonus  = $includeBonus ? (float) ($user->bonus_sum ?? 0) : 0.0;
+            $user->points    = $base + $bonus;
+            $user->rank_real = $rankMap[$user->id] ?? null;
             return $user;
         });
 
         return $result;
     }
 
-    /** รายเดือน */
+    /** ===== รายเดือน ===== */
     #[Computed]
     public function getTopRankByMonth(): LengthAwarePaginator
     {
-        $starDate = Carbon::now()->startOfMonth();
-        $endDate  = $starDate->copy()->endOfMonth();
+        $start = now()->startOfMonth();
+        $end   = $start->copy()->addMonth()->startOfMonth(); // exclusive
+        $includeBonus = $this->type === 'step';
 
-        $subQuery = GameFootballPrediction::query()
-            ->selectRaw('SUM(gain_amount)')
-            ->whereColumn('user_id', 'users.id');
-        $this->applyTypeFilter($subQuery)
-            ->whereNotNull('result')
-            ->whereBetween('created_at', [
-                $starDate->toDateTimeString(),
-                $endDate->toDateTimeString()
-            ]);
+        $base = function ($q) use ($start, $end) {
+            $this->applyTypeFilter($q)
+                ->whereNotNull('result')
+                ->where('created_at', '>=', $start)
+                ->where('created_at', '<',  $end);
+            return $q;
+        };
+        $baseAll = function ($q) use ($start, $end) {
+            $this->applyTypeFilter($q)
+                ->where('created_at', '>=', $start)
+                ->where('created_at', '<',  $end);
+            return $q;
+        };
 
+        $bonusSub = DB::table('user_gold_coin_transaction_log')
+            ->selectRaw('COALESCE(SUM(`change`),0)')
+            ->whereColumn('user_id', 'users.id')
+            ->where('action', 'bonus_step3_fullwin')
+            ->whereBetween('created_at', [$start, $end]);
+
+        // ชุดแสดงผล (ใส่ค้นหา)
         $result = User::query()
-            ->withWhereHas('gameFootBallPrediction', function ($query) use ($starDate, $endDate) {
-                $this->applyTypeFilter($query)
-                    ->whereNotNull('result')
-                    ->whereBetween('created_at', [
-                        $starDate->toDateTimeString(),
-                        $endDate->toDateTimeString()
-                    ])
-                    ->orderBy('created_at', 'desc')
-                    ->orderBy('id', 'desc')
-                    ->limit(10);
-            })
-            ->addSelect(['gain_sum' => $subQuery])
-            ->orderByDesc('gain_sum')
+            ->select('users.*')
+            ->selectSub($bonusSub, 'bonus_sum')
+            ->when($this->searchMonth, fn($q) => $this->applyUserSearch($q, $this->searchMonth))
+            ->withCount('predicToday')
+            ->with([
+                'targetViewPrediction' => function (HasMany $query) {
+                    $query->where('asking_user_id', auth()->id())
+                          ->where('type', $this->type)
+                          ->where('expired_date', '>', Carbon::now());
+                },
+                'gameFootBallPrediction' => function (HasMany $query) use ($base) {
+                    $base($query)->orderByDesc('created_at')->orderByDesc('id');
+                },
+            ])
+            ->whereHas('gameFootBallPrediction', $base)
+
+            ->withSum(['gameFootBallPrediction as points_sum' => $base], 'gain_amount')
+            ->withCount(['gameFootBallPrediction as win'      => fn($q) => $base($q)->where('result', 'win')])
+            ->withCount(['gameFootBallPrediction as win_half' => fn($q) => $base($q)->whereIn('result', ['win_half', 'winhalf'])])
+            ->withCount(['gameFootBallPrediction as draw'     => fn($q) => $base($q)->where('result', 'draw')])
+            ->withCount(['gameFootBallPrediction as lose'     => fn($q) => $base($q)->where('result', 'lose')])
+
+            ->withCount(['gameFootBallPrediction as played'   => $base])
+            ->withCount(['gameFootBallPrediction as attempts' => $baseAll])
+
+            ->when(
+                $includeBonus,
+                fn($q) => $q->orderByDesc(DB::raw('COALESCE(points_sum,0) + COALESCE(bonus_sum,0)')),
+                fn($q) => $q->orderByDesc('points_sum')
+            )
+            ->orderByDesc('played')
+            ->orderByDesc('win')
+            ->orderByDesc('win_half')
+            ->orderByDesc('draw')
+            ->orderBy('lose')
+            ->orderBy('users.id')
             ->paginate(10, pageName: 'rank-month-page');
 
-        $result->getCollection()->transform(function ($user) {
-            $win = $winHalf = $draw = $lose = $points = 0;
-            $preds = ($user->gameFootBallPrediction ?? collect())->where('type', $this->type);
+        // สร้าง rank map ของทั้งเดือน (ไม่ใส่คำค้นหา)
+        $rankBase = User::query()
+            ->select('users.id')
+            ->selectSub($bonusSub, 'bonus_sum')
+            ->withSum(['gameFootBallPrediction as points_sum' => $base], 'gain_amount')
+            ->withCount(['gameFootBallPrediction as win'      => fn($q) => $base($q)->where('result', 'win')])
+            ->withCount(['gameFootBallPrediction as win_half' => fn($q) => $base($q)->whereIn('result', ['win_half', 'winhalf'])])
+            ->withCount(['gameFootBallPrediction as draw'     => fn($q) => $base($q)->where('result', 'draw')])
+            ->withCount(['gameFootBallPrediction as lose'     => fn($q) => $base($q)->where('result', 'lose')])
+            ->withCount(['gameFootBallPrediction as played'   => $base])
+            ->whereHas('gameFootBallPrediction', $base);
 
-            foreach ($preds as $p) {
-                $points += (float) $p->gain_amount;
-                switch ($p->result) {
-                    case 'win': $win++; break;
-                    case 'winhalf':
-                    case 'win_half': $winHalf++; break;
-                    case 'draw': $draw++; break;
-                    case 'lose': $lose++; break;
-                }
-            }
+        if ($includeBonus) {
+            $rankBase->orderByDesc(DB::raw('COALESCE(points_sum,0) + COALESCE(bonus_sum,0)'));
+        } else {
+            $rankBase->orderByDesc('points_sum');
+        }
 
-            $user->win      = $win;
-            $user->win_half = $winHalf;
-            $user->draw     = $draw;
-            $user->lose     = $lose;
-            $user->points   = $points;
+        $rankIds = $rankBase
+            ->orderByDesc('played')
+            ->orderByDesc('win')
+            ->orderByDesc('win_half')
+            ->orderByDesc('draw')
+            ->orderBy('lose')
+            ->orderBy('users.id')
+            ->pluck('users.id')
+            ->all();
+
+        $rankMap = [];
+        foreach ($rankIds as $idx => $uid) {
+            $rankMap[$uid] = $idx + 1;
+        }
+
+        $result->getCollection()->transform(function ($user) use ($rankMap, $includeBonus) {
+            $base   = (float) ($user->points_sum ?? 0);
+            $bonus  = $includeBonus ? (float) ($user->bonus_sum ?? 0) : 0.0;
+            $user->points    = $base + $bonus;
+            $user->rank_real = $rankMap[$user->id] ?? null;
             return $user;
         });
 
@@ -260,10 +370,14 @@ class PredictionRank extends Component
     {
         $this->targetViewPredictionId = $targetUserId;
         $this->costForPrediction = $this->resolveViewCost($order);
-        $this->dispatch('open-view-prediction-modal');
+        // รองรับทั้ง v2/v3
+        if (method_exists($this, 'dispatch')) {
+            $this->dispatch('open-view-prediction-modal');
+        } else {
+            $this->dispatchBrowserEvent('open-view-prediction-modal');
+        }
     }
 
-    // กรณีมีสิทธิ์อยู่แล้ว (จาก targetViewPrediction) → ไปดูได้เลย
     public function viewPredictionResult(string $targetUserId)
     {
         $this->goToViewPrediction($targetUserId);
@@ -275,17 +389,14 @@ class PredictionRank extends Component
             'targetViewPredictionId' => 'required|exists:users,id',
         ]);
 
-        // อันดับ >= 4 → ฟรี แต่ต้องสร้างสิทธิ์ไว้ให้ผ่านหน้าเช็คสิทธิ์
         if ($this->costForPrediction <= 0) {
             UserViewPrediction::updateOrCreate(
                 [
                     'asking_user_id' => auth()->id(),
                     'target_user_id' => $this->targetViewPredictionId,
-                    'type'           => $this->type, // ✅ ผูกตามประเภท
+                    'type'           => $this->type,
                 ],
-                [
-                    'expired_date'   => now()->endOfDay()->toDateTimeString(),
-                ]
+                ['expired_date'   => now()->endOfDay()->toDateTimeString()]
             );
 
             $id = $this->targetViewPredictionId;
@@ -295,7 +406,11 @@ class PredictionRank extends Component
         }
 
         if (auth()->user()->coins_silver < $this->costForPrediction) {
-            $this->dispatch('sweet-alert', (new NormalAlert('เหรียญของท่านไม่เพียงพอ', 'warning'))->toArray());
+            if (method_exists($this, 'dispatch')) {
+                $this->dispatch('sweet-alert', (new NormalAlert('เหรียญของท่านไม่เพียงพอ', 'warning'))->toArray());
+            } else {
+                $this->dispatchBrowserEvent('sweet-alert', (new NormalAlert('เหรียญของท่านไม่เพียงพอ', 'warning'))->toArray());
+            }
             return;
         }
 
@@ -317,16 +432,13 @@ class PredictionRank extends Component
                 'updated_by' => $user->id,
             ]);
 
-            // บันทึกสิทธิ์พร้อม type
             UserViewPrediction::updateOrCreate(
                 [
                     'asking_user_id' => $user->id,
                     'target_user_id' => $this->targetViewPredictionId,
-                    'type'           => $this->type, // ✅ ผูกตามประเภท
+                    'type'           => $this->type,
                 ],
-                [
-                    'expired_date'   => now()->endOfDay()->toDateTimeString(),
-                ]
+                ['expired_date'   => now()->endOfDay()->toDateTimeString()]
             );
 
             DB::commit();
@@ -336,7 +448,11 @@ class PredictionRank extends Component
             $this->goToViewPrediction($id);
         } catch (Exception $e) {
             DB::rollBack();
-            $this->dispatch('sweet-alert', (new NormalAlert('ไม่สามารถดูผลล่าสุดได้', 'error'))->toArray());
+            if (method_exists($this, 'dispatch')) {
+                $this->dispatch('sweet-alert', (new NormalAlert('ไม่สามารถดูผลล่าสุดได้', 'error'))->toArray());
+            } else {
+                $this->dispatchBrowserEvent('sweet-alert', (new NormalAlert('ไม่สามารถดูผลล่าสุดได้', 'error'))->toArray());
+            }
         }
     }
 
