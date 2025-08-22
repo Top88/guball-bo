@@ -20,12 +20,27 @@ use App\Livewire\SelectGame;
 use App\Livewire\SelectSingleGame; // ✅ เพิ่มบรรทัดนี้
 use App\Livewire\ViewUserPredicted;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Auth;        // ✅ ใช้สำหรับ logout
+use Illuminate\Http\Request;                // ✅ รับ request เพื่อ invalidate session
+use App\Livewire\MatchResults;
+
+Route::get('match-results', MatchResults::class)->name('match-results');
 
 Route::get('/', Index::class)->name('index');
 
 Route::get('/register', Register::class)->name('register');
-
 Route::get('/login', Login::class)->name('login');
+
+/**
+ * ✅ ปุ่มออกจากระบบ (POST) — ใช้ได้ทั้งเมนูบน/เมนูล่าง
+ *    อย่าลืมใน Blade ใช้ <form method="POST" action="{{ route('logout') }}"> @csrf ...</form>
+ */
+Route::post('/logout', function (Request $request) {
+    Auth::guard('web')->logout();
+    $request->session()->invalidate();
+    $request->session()->regenerateToken();
+    return redirect()->route('login'); // เปลี่ยนเป็น route('index') ได้ถ้าต้องการเด้งไปหน้าแรก
+})->middleware('auth')->name('logout');
 
 Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::get('select-game', SelectGame::class)->name('select-game');

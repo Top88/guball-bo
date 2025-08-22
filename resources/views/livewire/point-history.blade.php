@@ -2,6 +2,9 @@
     use App\Domain\Football\Match\PredictionResult;
     use Carbon\Carbon;
 
+    // โบนัสจาก DB ต่อวัน (มาจากคอมโพเนนต์ -> goldBonusByDate)
+    $bonusByDate = $goldBonusByDate ?? [];
+
     // จัดเรียงประวัติจาก "ใหม่ -> เก่า" ตาม key (วันที่)
     $sortedHistories = collect($this->pointHistories ?? [])
         ->sortByDesc(function ($items, $dateKey) {
@@ -15,11 +18,16 @@
     // ดึงเดือนล่าสุดจาก key แรก
     $latestDateKey   = optional($sortedHistories->keys())->first();
     $latestItems     = $latestDateKey ? ($sortedHistories[$latestDateKey] ?? collect()) : collect();
-    $latestGoldSum   = (float) $latestItems->sum('gain_amount');
+
+    // แต้มฐาน + โบนัสของวันล่าสุด (ไม่ใช้ก็เก็บไว้เผื่ออนาคต)
+    $latestBaseGold  = (float) $latestItems->sum('gain_amount');
+    $latestBonus     = (int)   ($bonusByDate[$latestDateKey] ?? 0);
+    $latestGoldSum   = $latestBaseGold + $latestBonus;
+
     $latestMonth     = $latestDateKey ? Carbon::parse($latestDateKey)->month : null;
     $latestYear      = $latestDateKey ? Carbon::parse($latestDateKey)->year : null;
 
-    // กรองข้อมูลเฉพาะเดือนล่าสุด
+    // กรองข้อมูลเฉพาะเดือนล่าสุด (หรือเดือนที่เลือก เพราะ pointHistories ถูก whereBetween แล้ว)
     $currentMonthHistories = $sortedHistories->filter(function ($items, $dateKey) use ($latestMonth, $latestYear) {
         try {
             $date = Carbon::parse($dateKey);
@@ -60,9 +68,13 @@
                     <tbody>
                         @forelse ($currentMonthHistories as $key => $items)
                             @php
-                                $singles = $items->where('type', 'single');
-                                $steps   = $items->where('type', 'step');
-                                $goldSum = (float) $items->sum('gain_amount');
+                                $singles   = $items->where('type', 'single');
+                                $steps     = $items->where('type', 'step');
+                                // แต้มฐานจาก gain_amount (ที่บันทึกตามโพยในวันนั้น)
+                                $baseGold  = (float) $items->sum('gain_amount');
+                                // โบนัสจาก DB (ที่เครดิตจริงแล้ว) ผูกด้วย note=YYYY-MM-DD
+                                $bonus     = (int)   ($bonusByDate[$key] ?? 0);
+                                $goldSum   = $baseGold + $bonus;
                             @endphp
                             <tr>
                                 <td><strong>{{ $key }}</strong></td>
@@ -96,7 +108,7 @@
                                     </div>
                                 </td>
 
-                                {{-- เหรียญทอง --}}
+                                {{-- เหรียญทอง (ฐาน + โบนัสจาก DB) --}}
                                 <td>
                                     <i class="fas fa-coins text-warning"></i>
                                     {{ number_format($goldSum, 0) }}

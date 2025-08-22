@@ -8,14 +8,20 @@ use App\Models\GameFootballMatch;
 use App\Models\GameFootballPrediction;
 use Carbon\Carbon;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 readonly class MatchService
 {
     public function __construct(private MatchRepository $matchRepository) {}
 
-    public function getMatches(?string $search, int $size = 10, int $page = 1, string $pageName = 'page', string $orderBy = 'asc'): LengthAwarePaginator
-    {
+    public function getMatches(
+        ?string $search,
+        int $size = 10,
+        int $page = 1,
+        string $pageName = 'page',
+        string $orderBy = 'asc'
+    ): LengthAwarePaginator {
         return $this->matchRepository->filter($search, $size, $page, $pageName, $orderBy);
     }
 
@@ -70,6 +76,17 @@ readonly class MatchService
     }
 
     /**
+     * ดึงผลการแข่งขันที่สรุปแล้วตามช่วงวันที่กำหนด
+     */
+    public function getFinishedMatchesByDateRange(string $start, string $end): Collection
+    {
+        return $this->matchRepository->getFinishedMatches(
+            Carbon::createFromFormat('Y-m-d', $start),
+            Carbon::createFromFormat('Y-m-d', $end),
+        );
+    }
+
+    /**
      * อัปเดตผลการทายลง game_football_prediction หลังจากสรุปผล
      */
     public function updatePredictionResult(GameFootballMatch $match): void
@@ -101,5 +118,4 @@ readonly class MatchService
             }
         });
     }
-
 }

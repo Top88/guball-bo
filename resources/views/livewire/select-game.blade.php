@@ -9,7 +9,7 @@
             <div class="text-center mx-auto" style="max-width: 800px;">
                 <h1>ทายผลบอลสเต็ป</h1>
                 <h4 class="text-primary">
-                    @lang('website.general.football_game_prediction') วันที่ {{ ThaiDate::toDateTime(Carbon::now()->toDateTimeString(), isShort: true) }}
+                    วันที่ {{ ThaiDate::toDateTime(Carbon::now()->toDateTimeString(), isShort: true) }}
                 </h4>
             </div>
 
@@ -162,6 +162,7 @@
                 <div class="modal-footer">
                     <!-- Toogle to second dialog -->
                     <button type="button" class="btn btn-danger" data-bs-dismiss="modal">ปิด</button>
+                    <a href="{{ route('point-history') }}" class="btn btn-success">ประวัติคะแนน</a>
                 </div>
             </div>
         </div>

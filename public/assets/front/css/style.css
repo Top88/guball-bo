@@ -1270,11 +1270,11 @@ table {
 
 .radio-item label {
     display: block;
-    background: #ffffff;
-    border: 2px solid #8181814f;
+    background: #eee;
+    border: 1px solid #dfdcdc;
     border-radius: 8px;
     cursor: pointer;
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 400;
     white-space: nowrap;
     position: relative;
@@ -1426,6 +1426,9 @@ h2 {
 h3 {
     font-size: 1rem; /* ~28px */
 }
+h4 {
+    font-size: 1rem; /* ~24px */
+    }
 
 /* Tablet (≤ 991px) */
 @media (max-width: 991px) {
@@ -1437,6 +1440,9 @@ h3 {
     }
     h3 {
         font-size: 1.5rem; /* ~24px */
+    }
+    h4 {
+        font-size: 1rem; /* ~24px */
     }
 }
 
@@ -1451,4 +1457,27 @@ h3 {
     h3 {
         font-size: 1.0rem; /* ~20px */
     }
+    h4 {
+        font-size: 1.0rem; /* ~24px */
+    }
+}
+
+@media (max-width: 600px) {
+  .radio-item label {
+    font-size: 12px;
+  }
+}
+
+.btn-warning {
+    flex: 1;
+    color: #fff;
+    background-color: #dc3545;
+    border-color: #dc3545;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 2px 4px;
+    line-height: 1.2;
+    text-align: center;
+    border-radius: 4px;
+    white-space: nowrap;
 }

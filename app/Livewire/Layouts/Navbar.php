@@ -2,7 +2,6 @@
 
 namespace App\Livewire\Layouts;
 
-use App\Domain\Auth\Services\AuthService;
 use App\Infrastructure\Traits\LivewireComponentTrait;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\On;
@@ -13,29 +12,37 @@ class Navbar extends Component
     use LivewireComponentTrait;
 
     public float $coins_silver = 0;
-
     public float $coins_gold = 0;
     public string $nickName = '';
 
-    public function mount()
+    public function mount(): void
     {
         $this->updateUserData();
     }
 
     #[On('updated-user-data')]
-    public function updateUserData()
+    public function updateUserData(): void
     {
         if (Auth::check()) {
-            $this->coins_silver = Auth::user()->coins_silver;
-            $this->coins_gold = Auth::user()->coins_gold;
-            $this->nickName = Auth::user()->nick_name;
+            $user = Auth::user();
+            $this->coins_silver = (float) $user->coins_silver;
+            $this->coins_gold   = (float) $user->coins_gold;
+            $this->nickName     = (string) $user->nick_name;
         }
     }
 
-    public function logout(AuthService $authService): void
+    public function logout()
     {
-        $authService->logout();
-        self::redirectRoute('login');
+        // หากคุณมี AuthService ภายในโดเมนเอง ก็สามารถใช้แทนบรรทัด Auth::logout() ได้:
+        // app(\App\Domain\Auth\Services\AuthService::class)->logout();
+
+        Auth::logout();
+        request()->session()->invalidate();
+        request()->session()->regenerateToken();
+
+        // Livewire v3: redirect พร้อม navigate จริง
+        return $this->redirectRoute('login', navigate: true);
+        // หรือกลับหน้าแรก: return $this->redirectRoute('index', navigate: true);
     }
 
     public function render()

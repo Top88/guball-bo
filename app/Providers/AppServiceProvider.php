@@ -13,6 +13,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 
+// ✅ เพิ่ม
+use App\Models\GameFootballPrediction;
+use App\Observers\GameFootballPredictionObserver;
+
 class AppServiceProvider extends ServiceProvider
 {
     /**
@@ -47,8 +51,12 @@ class AppServiceProvider extends ServiceProvider
                 }
             }
         } catch (\Exception) {
-
+            //
         }
+
         Relation::enforceMorphMap(ModelMorphMap::allCasesInArray());
+
+        // ✅ ลงทะเบียน Observer (จ่ายโบนัสเมื่อ result เปลี่ยน)
+        GameFootballPrediction::observe(GameFootballPredictionObserver::class);
     }
 }
